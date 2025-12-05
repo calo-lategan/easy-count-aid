@@ -71,9 +71,10 @@ export function useInventoryItems() {
     const existing = await db.getItem(id);
     if (!existing) return;
     
+    // Allow negative quantities
     const newQuantity = type === 'add' 
       ? existing.current_quantity + quantity 
-      : Math.max(0, existing.current_quantity - quantity);
+      : existing.current_quantity - quantity;
     
     // Update item quantity
     const updated: db.InventoryItem = {

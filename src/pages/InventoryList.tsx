@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useInventoryItems, useStockMovements, useDeviceUsers } from '@/hooks/useInventory';
-import { ArrowLeft, Search, Package, Plus, AlertTriangle, Trash2 } from 'lucide-react';
+import { useCategories } from '@/hooks/useCategories';
+import { ArrowLeft, Search, Package, Plus, AlertTriangle, Trash2, Pencil, TrendingDown } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -24,22 +25,44 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { InventoryItem } from '@/lib/indexedDb';
+import { InventoryFilters } from '@/components/inventory/InventoryFilters';
+import { ItemEditDialog } from '@/components/inventory/ItemEditDialog';
+import { LowStockAlert } from '@/components/inventory/LowStockAlert';
+import { ConditionBadge } from '@/components/stock/ConditionBadge';
+import { Badge } from '@/components/ui/badge';
 
 export default function InventoryList() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { items, deleteItem } = useInventoryItems();
+  const { items, deleteItem, updateItem } = useInventoryItems();
   const { users } = useDeviceUsers();
+  const { categories, getCategoryPath } = useCategories();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<InventoryItem | null>(null);
+  
+  // Filters
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
 
-  const filteredItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredItems = items.filter(item => {
+    // Search filter
+    const matchesSearch = 
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Category filter
+    const matchesCategory = !selectedCategory || item.category_id === selectedCategory;
+    
+    // Condition filter
+    const matchesCondition = !selectedCondition || item.condition === selectedCondition;
+    
+    return matchesSearch && matchesCategory && matchesCondition;
+  });
 
   const handleDelete = async () => {
     if (!itemToDelete) return;
@@ -52,6 +75,25 @@ export default function InventoryList() {
     setDeleteDialogOpen(false);
     setItemToDelete(null);
     setSelectedItem(null);
+  };
+
+  const handleEditSave = async (updates: Partial<InventoryItem>) => {
+    if (!itemToEdit) return;
+    
+    await updateItem(itemToEdit.id, updates);
+    toast({
+      title: 'Item Updated',
+      description: `${updates.name || itemToEdit.name} has been updated.`,
+    });
+  };
+
+  const isLowStock = (item: InventoryItem) => {
+    const threshold = item.low_stock_threshold ?? 5;
+    return item.current_quantity <= threshold;
+  };
+
+  const isNegativeStock = (item: InventoryItem) => {
+    return item.current_quantity < 0;
   };
 
   return (
@@ -68,6 +110,15 @@ export default function InventoryList() {
           </Button>
         </div>
 
+        {/* Low Stock Alerts */}
+        <LowStockAlert 
+          items={items}
+          onItemClick={(item) => {
+            setItemToEdit(item);
+            setEditDialogOpen(true);
+          }}
+        />
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -79,6 +130,15 @@ export default function InventoryList() {
           />
         </div>
 
+        {/* Filters */}
+        <InventoryFilters
+          categories={categories}
+          selectedCategory={selectedCategory}
+          selectedCondition={selectedCondition}
+          onCategoryChange={setSelectedCategory}
+          onConditionChange={setSelectedCondition}
+        />
+
         {/* Items List */}
         <div className="space-y-3">
           {filteredItems.length === 0 ? (
@@ -86,7 +146,9 @@ export default function InventoryList() {
               <CardContent className="p-8 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-lg text-muted-foreground">
-                  {searchQuery ? 'No items match your search' : 'No items in inventory'}
+                  {searchQuery || selectedCategory || selectedCondition 
+                    ? 'No items match your filters' 
+                    : 'No items in inventory'}
                 </p>
                 <Button
                   className="mt-4"
@@ -101,26 +163,61 @@ export default function InventoryList() {
               <Card 
                 key={item.id}
                 className={`cursor-pointer transition-colors hover:bg-accent ${
-                  item.current_quantity <= 5 ? 'border-destructive/50' : ''
+                  isNegativeStock(item) ? 'border-destructive' : isLowStock(item) ? 'border-amber-500' : ''
                 }`}
                 onClick={() => setSelectedItem(item)}
               >
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Package className="h-8 w-8 text-muted-foreground" />
-                    <div>
-                      <p className="font-semibold text-lg">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <Package className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="font-semibold text-lg">{item.name}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>SKU: {item.sku}</span>
+                          {item.category_id && (
+                            <Badge variant="outline" className="text-xs">
+                              {getCategoryPath(item.category_id)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right flex items-center gap-3">
+                      {isNegativeStock(item) && (
+                        <TrendingDown className="h-5 w-5 text-destructive" />
+                      )}
+                      {isLowStock(item) && !isNegativeStock(item) && (
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      )}
+                      <div>
+                        <p className={`text-2xl font-bold ${
+                          isNegativeStock(item) ? 'text-destructive' : 
+                          isLowStock(item) ? 'text-amber-500' : ''
+                        }`}>
+                          {item.current_quantity}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          threshold: {item.low_stock_threshold ?? 5}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-3">
-                    {item.current_quantity <= 5 && (
-                      <AlertTriangle className="h-5 w-5 text-destructive" />
-                    )}
-                    <div>
-                      <p className="text-2xl font-bold">{item.current_quantity}</p>
-                      <p className="text-xs text-muted-foreground">in stock</p>
-                    </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    {item.condition && <ConditionBadge condition={item.condition} />}
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="ml-auto gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setItemToEdit(item);
+                        setEditDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -132,11 +229,30 @@ export default function InventoryList() {
         <ItemDetailDialog
           item={selectedItem}
           users={users}
+          categories={categories}
+          getCategoryPath={getCategoryPath}
           onClose={() => setSelectedItem(null)}
           onDelete={(item) => {
             setItemToDelete(item);
             setDeleteDialogOpen(true);
           }}
+          onEdit={(item) => {
+            setItemToEdit(item);
+            setEditDialogOpen(true);
+            setSelectedItem(null);
+          }}
+        />
+
+        {/* Edit Dialog */}
+        <ItemEditDialog
+          item={itemToEdit}
+          categories={categories}
+          open={editDialogOpen}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setItemToEdit(null);
+          }}
+          onSave={handleEditSave}
         />
 
         {/* Delete Confirmation */}
@@ -168,11 +284,14 @@ export default function InventoryList() {
 interface ItemDetailDialogProps {
   item: InventoryItem | null;
   users: { id: string; name: string }[];
+  categories: { id: string; name: string }[];
+  getCategoryPath: (id: string) => string;
   onClose: () => void;
   onDelete: (item: InventoryItem) => void;
+  onEdit: (item: InventoryItem) => void;
 }
 
-function ItemDetailDialog({ item, users, onClose, onDelete }: ItemDetailDialogProps) {
+function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, onDelete, onEdit }: ItemDetailDialogProps) {
   const { movements } = useStockMovements(item?.id);
 
   if (!item) return null;
@@ -192,8 +311,28 @@ function ItemDetailDialog({ item, users, onClose, onDelete }: ItemDetailDialogPr
             </div>
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">Current Stock</p>
-              <p className="font-semibold text-2xl">{item.current_quantity}</p>
+              <p className={`font-semibold text-2xl ${item.current_quantity < 0 ? 'text-destructive' : ''}`}>
+                {item.current_quantity}
+              </p>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground">Category</p>
+              <p className="font-semibold">
+                {item.category_id ? getCategoryPath(item.category_id) : 'Uncategorized'}
+              </p>
+            </div>
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground">Condition</p>
+              {item.condition && <ConditionBadge condition={item.condition} />}
+            </div>
+          </div>
+
+          <div className="bg-muted p-4 rounded-lg">
+            <p className="text-sm text-muted-foreground">Low Stock Threshold</p>
+            <p className="font-semibold">{item.low_stock_threshold ?? 5}</p>
           </div>
 
           <div className="text-sm text-muted-foreground">
@@ -238,14 +377,24 @@ function ItemDetailDialog({ item, users, onClose, onDelete }: ItemDetailDialogPr
             </div>
           </div>
 
-          <Button
-            variant="destructive"
-            className="w-full gap-2"
-            onClick={() => onDelete(item)}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Item
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={() => onEdit(item)}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit Item
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 gap-2"
+              onClick={() => onDelete(item)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Item
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

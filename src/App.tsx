@@ -10,6 +10,7 @@ import ManualEntry from "./pages/ManualEntry";
 import InventoryList from "./pages/InventoryList";
 import StockDashboard from "./pages/StockDashboard";
 import Categories from "./pages/Categories";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 // Initialize sync service
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/inventory" element={<InventoryList />} />
           <Route path="/stock-dashboard" element={<StockDashboard />} />
           <Route path="/categories" element={<Categories />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

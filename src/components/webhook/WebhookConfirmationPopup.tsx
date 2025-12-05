@@ -6,13 +6,23 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Minus, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Minus, Package, AlertTriangle, Check, X, Edit } from 'lucide-react';
 
 interface WebhookData {
   item_name: string;
@@ -27,6 +37,8 @@ interface WebhookConfirmationPopupProps {
   onConfirm: (action: 'add' | 'remove', data: WebhookData) => Promise<void>;
 }
 
+type Step = 'initial' | 'confirm-add' | 'edit-amount';
+
 export function WebhookConfirmationPopup({ 
   open, 
   onClose, 
@@ -37,11 +49,14 @@ export function WebhookConfirmationPopup({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<WebhookData | null>(null);
   const [existingItem, setExistingItem] = useState<{ name: string; current_quantity: number } | null>(null);
+  const [step, setStep] = useState<Step>('initial');
+  const [editedAmount, setEditedAmount] = useState(0);
 
   useEffect(() => {
     if (initialData) {
       setData({ ...initialData });
-      // Check if item exists
+      setEditedAmount(initialData.amount);
+      setStep('initial');
       checkExistingItem(initialData.sku);
     }
   }, [initialData]);
@@ -56,49 +71,77 @@ export function WebhookConfirmationPopup({
     setExistingItem(item);
   };
 
-  const handleConfirm = async (action: 'add' | 'remove') => {
+  const handleClose = () => {
+    setStep('initial');
+    onClose();
+  };
+
+  const handleAddClick = () => {
+    setStep('confirm-add');
+  };
+
+  const handleConfirmYes = async () => {
     if (!data) return;
 
-    // Validation
-    if (!data.item_name.trim()) {
-      toast({ title: 'Error', description: 'Item name is required', variant: 'destructive' });
-      return;
+    setLoading(true);
+    try {
+      await onConfirm('add', data);
+      toast({ 
+        title: 'Success', 
+        description: `Added ${data.amount} units of ${data.item_name}` 
+      });
+      handleClose();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to add stock', variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
-    if (!data.sku.trim()) {
-      toast({ title: 'Error', description: 'SKU is required', variant: 'destructive' });
-      return;
-    }
-    if (!Number.isInteger(data.amount) || data.amount <= 0) {
-      toast({ title: 'Error', description: 'Amount must be a positive integer', variant: 'destructive' });
-      return;
-    }
+  };
 
-    // Check for removal from non-existent or insufficient stock
-    if (action === 'remove') {
-      if (!existingItem) {
-        toast({ title: 'Error', description: 'Cannot remove from non-existent item', variant: 'destructive' });
-        return;
-      }
-      if (data.amount > existingItem.current_quantity) {
-        toast({ 
-          title: 'Error', 
-          description: `Cannot remove ${data.amount}. Only ${existingItem.current_quantity} available.`, 
-          variant: 'destructive' 
-        });
-        return;
-      }
+  const handleConfirmNo = () => {
+    setStep('edit-amount');
+  };
+
+  const handleSaveEditedAmount = async () => {
+    if (!data || editedAmount <= 0) {
+      toast({ title: 'Error', description: 'Amount must be greater than 0', variant: 'destructive' });
+      return;
     }
 
     setLoading(true);
     try {
-      await onConfirm(action, data);
+      await onConfirm('add', { ...data, amount: editedAmount });
       toast({ 
         title: 'Success', 
-        description: `Stock ${action === 'add' ? 'added' : 'removed'} successfully` 
+        description: `Added ${editedAmount} units of ${data.item_name}` 
       });
-      onClose();
+      handleClose();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to update stock', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to add stock', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!data) return;
+
+    // Validation
+    if (!existingItem) {
+      toast({ title: 'Error', description: 'Cannot remove from non-existent item', variant: 'destructive' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onConfirm('remove', data);
+      toast({ 
+        title: 'Success', 
+        description: `Removed ${data.amount} units of ${data.item_name}` 
+      });
+      handleClose();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to remove stock', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -106,108 +149,182 @@ export function WebhookConfirmationPopup({
 
   if (!data) return null;
 
-  return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Incoming Stock Update
-          </DialogTitle>
-        </DialogHeader>
+  // Initial popup with incoming data
+  if (step === 'initial') {
+    return (
+      <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Incoming Stock Update
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Existing item info */}
-          {existingItem ? (
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">Existing item found:</p>
-              <p className="font-medium">{existingItem.name}</p>
-              <p className="text-sm">Current stock: <span className="font-bold">{existingItem.current_quantity}</span></p>
-            </div>
-          ) : (
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-              <div>
-                <p className="font-medium text-yellow-800 dark:text-yellow-300">New Item</p>
-                <p className="text-sm text-yellow-700 dark:text-yellow-400">This item doesn't exist yet. Adding will create it.</p>
+          <div className="space-y-4 py-4">
+            {/* Existing item info */}
+            {existingItem ? (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">Existing item found:</p>
+                <p className="font-medium">{existingItem.name}</p>
+                <p className="text-sm">Current stock: <span className="font-bold">{existingItem.current_quantity}</span></p>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800 dark:text-amber-300">New Item</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400">This item doesn't exist yet. Adding will create it.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Webhook Data Display */}
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Name:</span>
+                <span className="font-medium">{data.item_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">SKU:</span>
+                <span className="font-mono">{data.sku}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Amount:</span>
+                <span className="font-bold text-lg">{data.amount}</span>
               </div>
             </div>
-          )}
 
-          {/* Editable fields */}
-          <div className="space-y-3">
-            <div>
-              <Label>Item Name</Label>
-              <Input
-                value={data.item_name}
-                onChange={(e) => setData({ ...data, item_name: e.target.value })}
-                placeholder="Item name"
-              />
+            {/* Preview */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-2">After action:</p>
+              <div className="flex gap-2">
+                <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                  Add → {existingItem ? existingItem.current_quantity + data.amount : data.amount}
+                </Badge>
+                {existingItem && (
+                  <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
+                    Remove → {existingItem.current_quantity - data.amount}
+                  </Badge>
+                )}
+              </div>
             </div>
-            <div>
-              <Label>SKU</Label>
-              <Input
-                value={data.sku}
-                onChange={(e) => {
-                  setData({ ...data, sku: e.target.value });
-                  if (e.target.value) checkExistingItem(e.target.value);
-                }}
-                placeholder="SKU"
-              />
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button variant="outline" onClick={handleClose} disabled={loading}>
+              Cancel
+            </Button>
+            {existingItem && (
+              <Button
+                variant="outline"
+                onClick={handleRemove}
+                disabled={loading}
+                className="gap-2 text-orange-600 border-orange-600 hover:bg-orange-50"
+              >
+                <Minus className="h-4 w-4" />
+                Remove
+              </Button>
+            )}
+            <Button
+              onClick={handleAddClick}
+              disabled={loading}
+              className="gap-2 bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Confirm Add popup - "Add X units of Item? Yes/No"
+  if (step === 'confirm-add') {
+    return (
+      <AlertDialog open={open} onOpenChange={(open) => !open && handleClose()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Stock Addition</AlertDialogTitle>
+            <AlertDialogDescription className="text-lg">
+              Add <span className="font-bold text-foreground">{data.amount}</span> units of{' '}
+              <span className="font-bold text-foreground">{data.item_name}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel onClick={handleConfirmNo} disabled={loading}>
+              <X className="h-4 w-4 mr-2" />
+              No, Edit Amount
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmYes} 
+              disabled={loading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Yes, Add Stock
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  // Edit Amount popup
+  if (step === 'edit-amount') {
+    return (
+      <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit Amount
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="font-medium">{data.item_name}</p>
+              <p className="text-sm text-muted-foreground">SKU: {data.sku}</p>
             </div>
-            <div>
-              <Label>Amount</Label>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">New Amount</Label>
               <Input
+                id="amount"
                 type="number"
                 min="1"
-                value={data.amount}
-                onChange={(e) => setData({ ...data, amount: parseInt(e.target.value) || 0 })}
-                placeholder="Amount"
+                value={editedAmount}
+                onChange={(e) => setEditedAmount(parseInt(e.target.value) || 0)}
+                className="text-lg h-12"
+                autoFocus
               />
             </div>
+
+            {existingItem && (
+              <p className="text-sm text-muted-foreground">
+                Current stock: {existingItem.current_quantity} → After: {existingItem.current_quantity + editedAmount}
+              </p>
+            )}
           </div>
 
-          {/* Preview */}
-          <div className="p-3 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground mb-2">Preview:</p>
-            <div className="flex gap-2">
-              <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                Add: {existingItem ? existingItem.current_quantity + data.amount : data.amount}
-              </Badge>
-              {existingItem && (
-                <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
-                  Remove: {Math.max(0, existingItem.current_quantity - data.amount)}
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="flex gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          {existingItem && (
-            <Button
-              variant="outline"
-              onClick={() => handleConfirm('remove')}
-              disabled={loading || data.amount > existingItem.current_quantity}
-              className="gap-2 text-orange-600 border-orange-600 hover:bg-orange-50"
-            >
-              <Minus className="h-4 w-4" />
-              Remove
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStep('confirm-add')} disabled={loading}>
+              Back
             </Button>
-          )}
-          <Button
-            onClick={() => handleConfirm('add')}
-            disabled={loading}
-            className="gap-2 bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+            <Button 
+              onClick={handleSaveEditedAmount} 
+              disabled={loading || editedAmount <= 0}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Save & Add Stock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return null;
 }
