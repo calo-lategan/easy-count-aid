@@ -9,6 +9,7 @@ interface InventoryItem {
   category_id?: string | null;
   condition?: 'good' | 'damaged' | 'broken';
   photos?: string[];
+  low_stock_threshold?: number;
   created_at: string;
   updated_at: string;
 }

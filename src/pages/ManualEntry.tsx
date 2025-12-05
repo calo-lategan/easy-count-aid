@@ -49,15 +49,7 @@ export default function ManualEntry() {
 
   const handleSubmit = async () => {
     const qty = parseInt(quantity) || 0;
-    if (qty <= 0) {
-      toast({
-        title: 'Invalid Quantity',
-        description: 'Please enter a valid quantity.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    
     try {
       if (isNewItem) {
         if (!newItemName.trim() || !newItemSku.trim()) {
@@ -69,17 +61,30 @@ export default function ManualEntry() {
           return;
         }
 
-        const newItem = await addItem({
+        // Allow creating items with 0 initial quantity
+        const initialQty = type === 'add' ? qty : 0;
+        await addItem({
           name: newItemName,
           sku: newItemSku,
-          current_quantity: type === 'add' ? qty : 0,
+          current_quantity: initialQty,
         });
 
         toast({
           title: 'Item Created',
-          description: `${newItemName} added with ${qty} units.`,
+          description: initialQty > 0 
+            ? `${newItemName} added with ${initialQty} units.`
+            : `${newItemName} created with no initial stock.`,
         });
       } else if (selectedItem) {
+        if (qty <= 0) {
+          toast({
+            title: 'Invalid Quantity',
+            description: 'Please enter a quantity greater than 0.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
         await updateQuantity(
           selectedItem.id,
           qty,
@@ -260,9 +265,12 @@ export default function ManualEntry() {
                     : 'bg-orange-600 hover:bg-orange-700'
                 }`}
                 onClick={handleSubmit}
-                disabled={!quantity || parseInt(quantity) <= 0}
+                disabled={isNewItem ? false : (!quantity || parseInt(quantity) <= 0)}
               >
-                {type === 'add' ? 'Add' : 'Remove'} {quantity || '0'} Units
+                {isNewItem && (!quantity || parseInt(quantity) === 0) 
+                  ? 'Create Item (No Stock)'
+                  : `${type === 'add' ? 'Add' : 'Remove'} ${quantity || '0'} Units`
+                }
               </Button>
             </CardContent>
           </Card>

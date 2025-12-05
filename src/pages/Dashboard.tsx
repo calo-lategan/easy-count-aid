@@ -8,7 +8,7 @@ import { useWebhookListener } from '@/hooks/useWebhookListener';
 import { useSimpleAuth } from '@/hooks/useSimpleAuth';
 import { WebhookConfirmationPopup } from '@/components/webhook/WebhookConfirmationPopup';
 import { SettingsAuthDialog } from '@/components/auth/SettingsAuthDialog';
-import { Package, Plus, Minus, List, AlertTriangle, BarChart3, FolderTree, Webhook } from 'lucide-react';
+import { Package, Plus, Minus, List, AlertTriangle, BarChart3, FolderTree, Webhook, Settings } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -105,19 +105,30 @@ export default function Dashboard() {
           </div>
 
           {/* Test Webhook Button */}
-          <Button 
-            size="lg" 
-            variant="secondary" 
-            className="h-14 text-base gap-2" 
-            onClick={() => simulateIncomingWebhook({ 
-              item_name: 'Test Widget', 
-              sku: 'WIDGET-001', 
-              amount: 10 
-            })}
-          >
-            <Webhook className="h-5 w-5" />
-            Test Webhook (Simulate Incoming)
-          </Button>
+          <div className="grid grid-cols-2 gap-4">
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="h-14 text-base gap-2" 
+              onClick={() => simulateIncomingWebhook({ 
+                item_name: 'Test Widget', 
+                sku: 'WIDGET-001', 
+                amount: 10 
+              })}
+            >
+              <Webhook className="h-5 w-5" />
+              Test Webhook
+            </Button>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="h-14 text-base gap-2" 
+              onClick={() => navigate('/settings')}
+            >
+              <Settings className="h-5 w-5" />
+              Settings
+            </Button>
+          </div>
         </div>
 
         {/* User Warning */}

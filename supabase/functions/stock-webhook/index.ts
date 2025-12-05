@@ -150,22 +150,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Calculate new quantity
+    // Calculate new quantity (allow negative)
     const newQuantity = payload.action === 'add' 
       ? item.current_quantity + payload.amount
-      : Math.max(0, item.current_quantity - payload.amount);
+      : item.current_quantity - payload.amount;
 
-    // Check if trying to remove more than available
+    // Warn but allow removal even if it results in negative stock
     if (payload.action === 'remove' && payload.amount > item.current_quantity) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Insufficient stock',
-          available: item.current_quantity,
-          requested: payload.amount,
-          message: `Cannot remove ${payload.amount} items. Only ${item.current_quantity} available.`
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log(`Warning: Removing ${payload.amount} from ${item.current_quantity} will result in negative stock`);
     }
 
     // Update item quantity
