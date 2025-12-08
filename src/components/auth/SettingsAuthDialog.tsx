@@ -10,31 +10,40 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, LogIn, LogOut, Shield } from 'lucide-react';
-
-const HARDCODED_PASSWORD = '1234';
+import { Settings, LogIn, LogOut, Shield, Loader2 } from 'lucide-react';
 
 interface SettingsAuthDialogProps {
   isLoggedIn: boolean;
-  onLogin: () => void;
+  onLogin: (pin: string) => Promise<{ success: boolean; error?: string }>;
   onLogout: () => void;
 }
 
 export function SettingsAuthDialog({ isLoggedIn, onLogin, onLogout }: SettingsAuthDialogProps) {
   const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleLogin = () => {
-    if (password === HARDCODED_PASSWORD) {
-      onLogin();
+  const handleLogin = async () => {
+    if (!pin.trim()) {
+      setError('Please enter your PIN');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    const result = await onLogin(pin);
+    
+    setIsLoading(false);
+    
+    if (result.success) {
       setOpen(false);
-      setPassword('');
-      setError('');
+      setPin('');
       toast({ title: 'Success', description: 'Logged in as admin' });
     } else {
-      setError('Incorrect password');
+      setError(result.error || 'Invalid PIN');
     }
   };
 
@@ -42,6 +51,14 @@ export function SettingsAuthDialog({ isLoggedIn, onLogin, onLogout }: SettingsAu
     onLogout();
     setOpen(false);
     toast({ title: 'Logged out', description: 'You have been logged out' });
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setPin('');
+      setError('');
+    }
   };
 
   return (
@@ -58,7 +75,7 @@ export function SettingsAuthDialog({ isLoggedIn, onLogin, onLogout }: SettingsAu
         )}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -89,18 +106,22 @@ export function SettingsAuthDialog({ isLoggedIn, onLogin, onLogout }: SettingsAu
             ) : (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="password">Admin Password</Label>
+                  <Label htmlFor="pin">Admin PIN</Label>
                   <Input
-                    id="password"
+                    id="pin"
                     type="password"
-                    value={password}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={pin}
                     onChange={(e) => {
-                      setPassword(e.target.value);
+                      setPin(e.target.value);
                       setError('');
                     }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                    placeholder="Enter password"
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && handleLogin()}
+                    placeholder="Enter PIN"
                     className={error ? 'border-destructive' : ''}
+                    disabled={isLoading}
+                    autoComplete="off"
                   />
                   {error && <p className="text-sm text-destructive mt-1">{error}</p>}
                 </div>
@@ -110,9 +131,13 @@ export function SettingsAuthDialog({ isLoggedIn, onLogin, onLogout }: SettingsAu
 
           <DialogFooter>
             {!isLoggedIn && (
-              <Button onClick={handleLogin} className="gap-2">
-                <LogIn className="h-4 w-4" />
-                Login
+              <Button onClick={handleLogin} className="gap-2" disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogIn className="h-4 w-4" />
+                )}
+                {isLoading ? 'Verifying...' : 'Login'}
               </Button>
             )}
           </DialogFooter>
