@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useInventoryItems, useDeviceUsers, useStockMovements } from '@/hooks/useInventory';
 import { useWebhookListener } from '@/hooks/useWebhookListener';
-import { useSimpleAuth } from '@/hooks/useSimpleAuth';
+import { useSecureAuth } from '@/hooks/useSecureAuth';
 import { WebhookConfirmationPopup } from '@/components/webhook/WebhookConfirmationPopup';
 import { SettingsAuthDialog } from '@/components/auth/SettingsAuthDialog';
 import { Package, Plus, Minus, List, AlertTriangle, BarChart3, FolderTree, Webhook, Settings } from 'lucide-react';
@@ -16,7 +16,7 @@ export default function Dashboard() {
   const { currentUser } = useDeviceUsers();
   const { movements } = useStockMovements();
   const { pendingWebhook, isPopupOpen, closePopup, confirmWebhook, simulateIncomingWebhook } = useWebhookListener();
-  const { isLoggedIn, login, logout } = useSimpleAuth();
+  const { isLoggedIn, login, logout } = useSecureAuth();
   
   const totalItems = items.length;
   const lowStockItems = items.filter(item => item.current_quantity <= 5).length;

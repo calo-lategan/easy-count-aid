@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-signature, x-webhook-timestamp',
 };
 
 interface WebhookPayload {
@@ -12,6 +12,55 @@ interface WebhookPayload {
   amount?: number;
 }
 
+// Create HMAC signature for webhook verification
+async function createHmac(message: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(message);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  return Array.from(new Uint8Array(signature), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// Verify webhook signature
+async function verifyWebhookSignature(
+  body: string, 
+  signature: string | null, 
+  timestamp: string | null,
+  secret: string
+): Promise<{ valid: boolean; error?: string }> {
+  if (!signature || !timestamp) {
+    return { valid: false, error: 'Missing signature or timestamp headers' };
+  }
+
+  // Check timestamp is within 5 minutes to prevent replay attacks
+  const timestampMs = parseInt(timestamp);
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  
+  if (isNaN(timestampMs) || Math.abs(now - timestampMs) > fiveMinutes) {
+    return { valid: false, error: 'Timestamp expired or invalid' };
+  }
+
+  // Create expected signature from timestamp + body
+  const signedPayload = `${timestamp}.${body}`;
+  const expectedSignature = await createHmac(signedPayload, secret);
+
+  if (signature !== expectedSignature) {
+    return { valid: false, error: 'Invalid signature' };
+  }
+
+  return { valid: true };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -19,11 +68,40 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const webhookSecret = Deno.env.get('WEBHOOK_SECRET');
+    
+    // Get request body as text for signature verification
+    const bodyText = await req.text();
+    
+    // Verify webhook signature if secret is configured
+    if (webhookSecret) {
+      const signature = req.headers.get('x-webhook-signature');
+      const timestamp = req.headers.get('x-webhook-timestamp');
+      
+      const verification = await verifyWebhookSignature(bodyText, signature, timestamp, webhookSecret);
+      
+      if (!verification.valid) {
+        console.error('Webhook signature verification failed:', verification.error);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Unauthorized', 
+            details: verification.error,
+            hint: 'Include x-webhook-signature and x-webhook-timestamp headers with valid HMAC signature'
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log('Webhook signature verified successfully');
+    } else {
+      console.warn('WEBHOOK_SECRET not configured - webhook signature verification disabled');
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const payload: WebhookPayload = await req.json();
+    const payload: WebhookPayload = JSON.parse(bodyText);
     console.log('Received webhook payload:', payload);
 
     // Validate payload

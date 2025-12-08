@@ -80,6 +80,19 @@ export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanel
           </pre>
         </div>
 
+        {/* Security Headers */}
+        <div className="space-y-2">
+          <Label>Required Security Headers</Label>
+          <pre className="p-3 bg-muted rounded-lg text-sm font-mono overflow-x-auto">
+{`x-webhook-signature: <HMAC-SHA256 of timestamp.body>
+x-webhook-timestamp: <Unix timestamp in ms>`}
+          </pre>
+          <p className="text-xs text-muted-foreground">
+            Sign the request with HMAC-SHA256 using your webhook secret. 
+            Signature = HMAC(timestamp + "." + body, WEBHOOK_SECRET)
+          </p>
+        </div>
+
         {/* Test Webhook */}
         <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
           <h4 className="font-medium">Test Webhook</h4>
