@@ -48,7 +48,8 @@ serve(async (req) => {
       );
     }
 
-    const { pin, action } = await req.json();
+    const body = await req.json();
+    const { pin, action, token } = body;
 
     if (action === 'verify') {
       // Verify the PIN
@@ -80,9 +81,7 @@ serve(async (req) => {
     }
 
     if (action === 'validate') {
-      // Validate an existing token
-      const { token } = await req.json();
-      
+      // Validate an existing token (token already extracted from body above)
       if (!token) {
         return new Response(
           JSON.stringify({ valid: false }),
