@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NumberPad } from '@/components/inventory/NumberPad';
+import { ConditionSelector } from '@/components/stock/ConditionSelector';
 import { useInventoryItems, useDeviceUsers } from '@/hooks/useInventory';
 import { ArrowLeft, Plus, Minus, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,7 @@ export default function ManualEntry() {
   const [isNewItem, setIsNewItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [newItemSku, setNewItemSku] = useState('');
+  const [condition, setCondition] = useState<'new' | 'good' | 'damaged' | 'broken'>('new');
 
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -67,6 +69,7 @@ export default function ManualEntry() {
           name: newItemName,
           sku: newItemSku,
           current_quantity: initialQty,
+          condition,
         });
 
         toast({
@@ -251,6 +254,14 @@ export default function ManualEntry() {
               <CardTitle>Enter Quantity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {type === 'add' && (
+                <ConditionSelector
+                  value={condition}
+                  onChange={setCondition}
+                  label="Condition of items being added"
+                />
+              )}
+              
               <div className="text-center p-4 bg-muted rounded-lg">
                 <span className="text-4xl font-bold">{quantity || '0'}</span>
               </div>

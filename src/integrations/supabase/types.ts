@@ -253,7 +253,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       entry_method: "ai_assisted" | "manual"
-      item_condition: "good" | "damaged" | "broken"
+      item_condition: "good" | "damaged" | "broken" | "new"
       movement_type: "add" | "remove"
     }
     CompositeTypes: {
@@ -384,7 +384,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       entry_method: ["ai_assisted", "manual"],
-      item_condition: ["good", "damaged", "broken"],
+      item_condition: ["good", "damaged", "broken", "new"],
       movement_type: ["add", "remove"],
     },
   },

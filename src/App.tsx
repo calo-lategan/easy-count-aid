@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
 import CameraScan from "./pages/CameraScan";
 import ConfirmEntry from "./pages/ConfirmEntry";
 import ManualEntry from "./pages/ManualEntry";
@@ -11,6 +14,8 @@ import InventoryList from "./pages/InventoryList";
 import StockDashboard from "./pages/StockDashboard";
 import Categories from "./pages/Categories";
 import Settings from "./pages/Settings";
+import ActivityLog from "./pages/ActivityLog";
+import AdminManagement from "./pages/AdminManagement";
 import NotFound from "./pages/NotFound";
 
 // Initialize sync service
@@ -24,17 +29,22 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/scan" element={<CameraScan />} />
-          <Route path="/confirm" element={<ConfirmEntry />} />
-          <Route path="/manual-entry" element={<ManualEntry />} />
-          <Route path="/inventory" element={<InventoryList />} />
-          <Route path="/stock-dashboard" element={<StockDashboard />} />
-          <Route path="/categories" element={<Categories />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/scan" element={<ProtectedRoute><CameraScan /></ProtectedRoute>} />
+            <Route path="/confirm" element={<ProtectedRoute><ConfirmEntry /></ProtectedRoute>} />
+            <Route path="/manual-entry" element={<ProtectedRoute><ManualEntry /></ProtectedRoute>} />
+            <Route path="/inventory" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
+            <Route path="/stock-dashboard" element={<ProtectedRoute><StockDashboard /></ProtectedRoute>} />
+            <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/activity-log" element={<ProtectedRoute requireAdmin><ActivityLog /></ProtectedRoute>} />
+            <Route path="/admin-management" element={<ProtectedRoute requireAdmin><AdminManagement /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -170,7 +170,15 @@ export default function InventoryList() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <Package className="h-8 w-8 text-muted-foreground" />
+                      {item.reference_image_url ? (
+                        <img 
+                          src={item.reference_image_url} 
+                          alt={item.name}
+                          className="h-12 w-12 object-cover rounded-lg border"
+                        />
+                      ) : (
+                        <Package className="h-8 w-8 text-muted-foreground" />
+                      )}
                       <div>
                         <p className="font-semibold text-lg">{item.name}</p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">

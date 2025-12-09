@@ -10,13 +10,15 @@ import { WebhookConfirmationPopup } from '@/components/webhook/WebhookConfirmati
 import { useWebhookListener } from '@/hooks/useWebhookListener';
 import { useInventoryItems } from '@/hooks/useInventory';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Settings as SettingsIcon, Bell, Database } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { ArrowLeft, Settings as SettingsIcon, Bell, Database, Activity, Shield, LogOut } from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { items, updateItem, refresh } = useInventoryItems();
   const { pendingWebhook, isPopupOpen, closePopup, confirmWebhook, simulateIncomingWebhook } = useWebhookListener();
+  const { isAdmin, signOut } = useAuth();
   
   const [globalThreshold, setGlobalThreshold] = useState(5);
 
@@ -103,6 +105,45 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Admin-Only Sections */}
+        {isAdmin && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Activity Log
+                </CardTitle>
+                <CardDescription>
+                  View all stock movements and user activity
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => navigate('/activity-log')} className="w-full">
+                  View Activity Log
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Admin Management
+                </CardTitle>
+                <CardDescription>
+                  Manage admin users and permissions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => navigate('/admin-management')} variant="outline" className="w-full">
+                  Manage Admins
+                </Button>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
         {/* Webhook Configuration */}
         <WebhookTestPanel 
           webhookUrl={webhookUrl}
@@ -122,6 +163,23 @@ export default function Settings() {
               <p>Total Items: {items.length}</p>
               <p>Data is stored locally and synced to cloud when online.</p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Sign Out */}
+        <Card>
+          <CardContent className="p-4">
+            <Button 
+              onClick={async () => {
+                await signOut();
+                navigate('/auth');
+              }} 
+              variant="outline" 
+              className="w-full gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
           </CardContent>
         </Card>
 
