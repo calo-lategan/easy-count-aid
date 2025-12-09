@@ -7,7 +7,7 @@ interface InventoryItem {
   current_quantity: number;
   reference_image_url?: string;
   category_id?: string | null;
-  condition?: 'good' | 'damaged' | 'broken';
+  condition?: 'new' | 'good' | 'damaged' | 'broken';
   photos?: string[];
   low_stock_threshold?: number;
   created_at: string;
@@ -29,6 +29,7 @@ interface StockMovement {
   entry_method: 'ai_assisted' | 'manual';
   ai_confidence?: number;
   notes?: string;
+  condition?: 'new' | 'good' | 'damaged' | 'broken';
   created_at: string;
 }
 

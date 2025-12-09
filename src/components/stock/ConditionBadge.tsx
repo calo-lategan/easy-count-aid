@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 
-type ItemCondition = 'good' | 'damaged' | 'broken';
+type ItemCondition = 'new' | 'good' | 'damaged' | 'broken';
 
 interface ConditionBadgeProps {
   condition: ItemCondition;
@@ -8,6 +8,10 @@ interface ConditionBadgeProps {
 
 export function ConditionBadge({ condition }: ConditionBadgeProps) {
   const variants: Record<ItemCondition, { label: string; className: string }> = {
+    new: { 
+      label: 'New', 
+      className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' 
+    },
     good: { 
       label: 'Good', 
       className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
@@ -22,7 +26,7 @@ export function ConditionBadge({ condition }: ConditionBadgeProps) {
     },
   };
 
-  const { label, className } = variants[condition];
+  const { label, className } = variants[condition] || variants.good;
 
   return (
     <Badge variant="outline" className={className}>

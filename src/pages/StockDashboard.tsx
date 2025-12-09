@@ -21,7 +21,7 @@ interface InventoryItemExtended {
   sku: string;
   current_quantity: number;
   category_id?: string | null;
-  condition?: 'good' | 'damaged' | 'broken';
+  condition?: 'new' | 'good' | 'damaged' | 'broken';
 }
 
 export default function StockDashboard() {
@@ -52,11 +52,13 @@ export default function StockDashboard() {
 
   // Calculate stock by condition
   const stockByCondition = useMemo(() => {
-    const conditions = { good: 0, damaged: 0, broken: 0 };
+    const conditions = { new: 0, good: 0, damaged: 0, broken: 0 };
     
     (items as InventoryItemExtended[]).forEach(item => {
       const condition = item.condition || 'good';
-      conditions[condition] += item.current_quantity;
+      if (condition in conditions) {
+        conditions[condition as keyof typeof conditions] += item.current_quantity;
+      }
     });
 
     return conditions;
@@ -157,6 +159,13 @@ export default function StockDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <ConditionBadge condition="new" />
+                    <span>New</span>
+                  </div>
+                  <span className="text-xl font-bold">{stockByCondition.new}</span>
+                </div>
                 <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                   <div className="flex items-center gap-2">
                     <ConditionBadge condition="good" />
