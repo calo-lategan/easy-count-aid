@@ -308,6 +308,22 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
 
   if (!item) return null;
 
+  // Calculate quantity breakdown by condition
+  const conditionBreakdown = movements.reduce((acc, movement) => {
+    const condition = movement.condition || 'good';
+    if (!acc[condition]) acc[condition] = 0;
+    
+    if (movement.movement_type === 'add') {
+      acc[condition] += movement.quantity;
+    } else {
+      acc[condition] -= movement.quantity;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Filter out zero or negative quantities
+  const activeConditions = Object.entries(conditionBreakdown).filter(([_, qty]) => qty > 0);
+
   return (
     <Dialog open={!!item} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
@@ -322,12 +338,27 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
               <p className="font-semibold">{item.sku}</p>
             </div>
             <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Current Stock</p>
+              <p className="text-sm text-muted-foreground">Total Stock</p>
               <p className={`font-semibold text-2xl ${item.current_quantity < 0 ? 'text-destructive' : ''}`}>
                 {item.current_quantity}
               </p>
             </div>
           </div>
+
+          {/* Quantity Breakdown by Condition */}
+          {activeConditions.length > 0 && (
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-2">Stock by Condition</p>
+              <div className="flex flex-wrap gap-2">
+                {activeConditions.map(([condition, qty]) => (
+                  <div key={condition} className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md">
+                    <ConditionBadge condition={condition as 'new' | 'good' | 'damaged' | 'broken'} />
+                    <span className="font-semibold">{qty}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-muted p-4 rounded-lg">
@@ -337,7 +368,7 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
               </p>
             </div>
             <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Condition</p>
+              <p className="text-sm text-muted-foreground">Default Condition</p>
               {item.condition && <ConditionBadge condition={item.condition} />}
             </div>
           </div>
@@ -366,7 +397,7 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
                       key={movement.id} 
                       className="flex justify-between items-center py-2 px-3 bg-muted rounded text-sm"
                     >
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className={
                           movement.movement_type === 'add' 
                             ? 'text-green-600 font-semibold' 
@@ -374,7 +405,10 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
                         }>
                           {movement.movement_type === 'add' ? '+' : '-'}{movement.quantity}
                         </span>
-                        <span className="text-muted-foreground ml-2">
+                        {movement.condition && (
+                          <ConditionBadge condition={movement.condition} />
+                        )}
+                        <span className="text-muted-foreground">
                           {movement.entry_method === 'ai_assisted' ? '(AI)' : '(Manual)'}
                         </span>
                       </div>
