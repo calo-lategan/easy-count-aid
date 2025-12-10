@@ -8,7 +8,9 @@ import { Label } from '@/components/ui/label';
 import { NumberPad } from '@/components/inventory/NumberPad';
 import { ConditionSelector } from '@/components/stock/ConditionSelector';
 import { useInventoryItems, useDeviceUsers } from '@/hooks/useInventory';
-import { ArrowLeft, Plus, Minus, Search } from 'lucide-react';
+import { useAuditLogs } from '@/hooks/useAuditLogs';
+import { useAuth } from '@/contexts/AuthContext';
+import { ArrowLeft, Plus, Minus, Search, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { InventoryItem } from '@/lib/indexedDb';
 
@@ -22,6 +24,8 @@ export default function ManualEntry() {
   const { toast } = useToast();
   const { items, addItem, updateQuantity } = useInventoryItems();
   const { currentUser } = useDeviceUsers();
+  const { addLog } = useAuditLogs();
+  const { isAdmin, user } = useAuth();
   
   const state = location.state as LocationState;
   
@@ -45,6 +49,14 @@ export default function ManualEntry() {
   };
 
   const handleCreateNew = () => {
+    if (!isAdmin) {
+      toast({
+        title: 'Admin Required',
+        description: 'Only administrators can create new items.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSelectedItem(null);
     setIsNewItem(true);
   };
@@ -54,6 +66,15 @@ export default function ManualEntry() {
     
     try {
       if (isNewItem) {
+        if (!isAdmin) {
+          toast({
+            title: 'Admin Required',
+            description: 'Only administrators can create new items.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
         if (!newItemName.trim() || !newItemSku.trim()) {
           toast({
             title: 'Missing Information',
@@ -63,13 +84,25 @@ export default function ManualEntry() {
           return;
         }
 
-        // Allow creating items with 0 initial quantity
         const initialQty = type === 'add' ? qty : 0;
-        await addItem({
+        const newItem = await addItem({
           name: newItemName,
           sku: newItemSku,
           current_quantity: initialQty,
           condition,
+        });
+
+        // Log item creation
+        await addLog({
+          user_id: user?.id || null,
+          device_user_id: currentUser?.id || null,
+          action_type: 'item_created',
+          item_id: newItem?.id || null,
+          item_name: newItemName,
+          item_sku: newItemSku,
+          old_value: null,
+          new_value: `Qty: ${initialQty}, Condition: ${condition}`,
+          notes: null,
         });
 
         toast({
@@ -93,7 +126,10 @@ export default function ManualEntry() {
           qty,
           type,
           currentUser?.id,
-          'manual'
+          'manual',
+          undefined,
+          undefined,
+          condition
         );
 
         toast({
@@ -179,18 +215,33 @@ export default function ManualEntry() {
 
               <Button
                 variant="outline"
-                className="w-full h-14 text-lg gap-2"
+                className={`w-full h-14 text-lg gap-2 ${!isAdmin ? 'opacity-50' : ''}`}
                 onClick={handleCreateNew}
+                disabled={!isAdmin}
               >
-                <Plus className="h-5 w-5" />
-                Add New Item
+                {isAdmin ? (
+                  <>
+                    <Plus className="h-5 w-5" />
+                    Add New Item
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-5 w-5" />
+                    Add New Item (Admin Only)
+                  </>
+                )}
               </Button>
+              {!isAdmin && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Only administrators can create new items. Select an existing item above.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
 
         {/* New Item Form */}
-        {isNewItem && (
+        {isNewItem && isAdmin && (
           <Card>
             <CardHeader>
               <CardTitle>New Item</CardTitle>
@@ -248,7 +299,7 @@ export default function ManualEntry() {
         )}
 
         {/* Quantity Input */}
-        {(selectedItem || isNewItem) && (
+        {(selectedItem || (isNewItem && isAdmin)) && (
           <Card>
             <CardHeader>
               <CardTitle>Enter Quantity</CardTitle>

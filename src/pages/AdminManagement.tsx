@@ -7,7 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Shield, UserPlus, Trash2, Loader2 } from 'lucide-react';
+import { useUsers, AppUser } from '@/hooks/useUsers';
+import { ArrowLeft, Shield, UserPlus, Trash2, Loader2, Users, ShieldCheck } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +33,7 @@ interface AdminUser {
 export default function AdminManagement() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { users: allUsers, loading: usersLoading, deleteUser: deleteUserProfile, refresh: refreshUsers } = useUsers();
   
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,10 +41,11 @@ export default function AdminManagement() {
   const [adding, setAdding] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null);
+  const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
+  const [deleteUserDialogOpen, setDeleteUserDialogOpen] = useState(false);
 
   const loadAdmins = async () => {
     try {
-      // Get all admin roles
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*')
@@ -48,7 +53,6 @@ export default function AdminManagement() {
 
       if (rolesError) throw rolesError;
 
-      // Get profiles for these admins
       const adminList: AdminUser[] = [];
       
       for (const role of roles || []) {
@@ -97,7 +101,6 @@ export default function AdminManagement() {
     setAdding(true);
 
     try {
-      // Find the user by email in profiles
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id, display_name')
@@ -114,7 +117,6 @@ export default function AdminManagement() {
         return;
       }
 
-      // Check if already an admin
       const { data: existingRole } = await supabase
         .from('user_roles')
         .select('id')
@@ -132,7 +134,6 @@ export default function AdminManagement() {
         return;
       }
 
-      // Add admin role
       const { error: insertError } = await supabase
         .from('user_roles')
         .insert({
@@ -149,6 +150,7 @@ export default function AdminManagement() {
 
       setNewAdminEmail('');
       loadAdmins();
+      refreshUsers();
     } catch (error) {
       console.error('Error adding admin:', error);
       toast({
@@ -164,7 +166,6 @@ export default function AdminManagement() {
   const handleRemoveAdmin = async () => {
     if (!adminToDelete) return;
 
-    // Prevent removing the last admin
     if (admins.length <= 1) {
       toast({
         title: 'Cannot remove',
@@ -189,6 +190,7 @@ export default function AdminManagement() {
       });
 
       loadAdmins();
+      refreshUsers();
     } catch (error) {
       console.error('Error removing admin:', error);
       toast({
@@ -202,8 +204,41 @@ export default function AdminManagement() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    // Check if user is an admin
+    if (userToDelete.is_admin) {
+      toast({
+        title: 'Cannot delete admin',
+        description: 'Remove admin privileges first before deleting this user.',
+        variant: 'destructive',
+      });
+      setDeleteUserDialogOpen(false);
+      return;
+    }
+
+    try {
+      await deleteUserProfile(userToDelete.user_id);
+      toast({
+        title: 'User deleted',
+        description: `${userToDelete.display_name} has been removed.`,
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete user. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleteUserDialogOpen(false);
+      setUserToDelete(null);
+    }
+  };
+
   return (
-    <AppLayout title="Admin Management">
+    <AppLayout title="User & Admin Management">
       <div className="max-w-2xl mx-auto space-y-6">
         <Button variant="ghost" onClick={() => navigate('/settings')} className="gap-2">
           <ArrowLeft className="h-5 w-5" />
@@ -211,97 +246,176 @@ export default function AdminManagement() {
         </Button>
 
         <div className="flex items-center gap-3">
-          <Shield className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold">Admin Management</h1>
+          <Users className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl font-bold">User & Admin Management</h1>
         </div>
 
-        {/* Add New Admin */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
-              Add New Admin
-            </CardTitle>
-            <CardDescription>
-              Grant admin privileges to an existing user
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">User Email or Display Name</Label>
-              <div className="flex gap-3">
-                <Input
-                  id="email"
-                  type="text"
-                  placeholder="Enter user's email or display name"
-                  value={newAdminEmail}
-                  onChange={(e) => setNewAdminEmail(e.target.value)}
-                />
-                <Button onClick={handleAddAdmin} disabled={adding}>
-                  {adding ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    'Add Admin'
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                The user must have already signed up before they can be promoted to admin.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <Tabs defaultValue="admins" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="admins" className="gap-2">
+              <Shield className="h-4 w-4" />
+              Admins
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="h-4 w-4" />
+              All Users
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Current Admins */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Admins</CardTitle>
-            <CardDescription>
-              Users with administrative privileges
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : admins.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                No admin users found
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {admins.map((admin) => (
-                  <div
-                    key={admin.id}
-                    className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">{admin.display_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Admin since {new Date(admin.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => {
-                        setAdminToDelete(admin);
-                        setDeleteDialogOpen(true);
-                      }}
-                      disabled={admins.length <= 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
+          <TabsContent value="admins" className="space-y-4 mt-4">
+            {/* Add New Admin */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" />
+                  Add New Admin
+                </CardTitle>
+                <CardDescription>
+                  Grant admin privileges to an existing user
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">User Email or Display Name</Label>
+                  <div className="flex gap-3">
+                    <Input
+                      id="email"
+                      type="text"
+                      placeholder="Enter user's email or display name"
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                    />
+                    <Button onClick={handleAddAdmin} disabled={adding}>
+                      {adding ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        'Add Admin'
+                      )}
                     </Button>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <p className="text-xs text-muted-foreground">
+                    The user must have already signed up before they can be promoted to admin.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Delete Confirmation */}
+            {/* Current Admins */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Current Admins</CardTitle>
+                <CardDescription>
+                  Users with administrative privileges
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : admins.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4">
+                    No admin users found
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {admins.map((admin) => (
+                      <div
+                        key={admin.id}
+                        className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="h-5 w-5 text-primary" />
+                          <div>
+                            <p className="font-medium">{admin.display_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Admin since {new Date(admin.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setAdminToDelete(admin);
+                            setDeleteDialogOpen(true);
+                          }}
+                          disabled={admins.length <= 1}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="users" className="space-y-4 mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>All Users</CardTitle>
+                <CardDescription>
+                  All registered users in the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {usersLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : allUsers.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4">
+                    No users found
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {allUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{user.display_name}</p>
+                              {user.is_admin && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Admin
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Joined {new Date(user.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setUserToDelete(user);
+                            setDeleteUserDialogOpen(true);
+                          }}
+                          disabled={user.is_admin}
+                          title={user.is_admin ? 'Remove admin privileges first' : 'Delete user'}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Delete Admin Confirmation */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -315,6 +429,28 @@ export default function AdminManagement() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleRemoveAdmin}>
                 Remove Admin
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete User Confirmation */}
+        <AlertDialog open={deleteUserDialogOpen} onOpenChange={setDeleteUserDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete User?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete {userToDelete?.display_name}'s profile.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteUser}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete User
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action_type: string
+          created_at: string
+          device_user_id: string | null
+          id: string
+          item_id: string | null
+          item_name: string | null
+          item_sku: string | null
+          new_value: string | null
+          notes: string | null
+          old_value: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          device_user_id?: string | null
+          id?: string
+          item_id?: string | null
+          item_name?: string | null
+          item_sku?: string | null
+          new_value?: string | null
+          notes?: string | null
+          old_value?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          device_user_id?: string | null
+          id?: string
+          item_id?: string | null
+          item_name?: string | null
+          item_sku?: string | null
+          new_value?: string | null
+          notes?: string | null
+          old_value?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_device_user_id_fkey"
+            columns: ["device_user_id"]
+            isOneToOne: false
+            referencedRelation: "device_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -138,6 +195,7 @@ export type Database = {
       stock_movements: {
         Row: {
           ai_confidence: number | null
+          condition: Database["public"]["Enums"]["item_condition"] | null
           created_at: string
           device_user_id: string | null
           entry_method: Database["public"]["Enums"]["entry_method"]
@@ -149,6 +207,7 @@ export type Database = {
         }
         Insert: {
           ai_confidence?: number | null
+          condition?: Database["public"]["Enums"]["item_condition"] | null
           created_at?: string
           device_user_id?: string | null
           entry_method?: Database["public"]["Enums"]["entry_method"]
@@ -160,6 +219,7 @@ export type Database = {
         }
         Update: {
           ai_confidence?: number | null
+          condition?: Database["public"]["Enums"]["item_condition"] | null
           created_at?: string
           device_user_id?: string | null
           entry_method?: Database["public"]["Enums"]["entry_method"]

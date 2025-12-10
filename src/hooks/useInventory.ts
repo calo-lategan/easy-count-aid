@@ -66,7 +66,8 @@ export function useInventoryItems() {
     userId?: string,
     entryMethod: 'ai_assisted' | 'manual' = 'manual',
     aiConfidence?: number,
-    notes?: string
+    notes?: string,
+    condition?: 'new' | 'good' | 'damaged' | 'broken'
   ) => {
     const existing = await db.getItem(id);
     if (!existing) return;
@@ -90,7 +91,7 @@ export function useInventoryItems() {
       record_data: updated,
     });
     
-    // Create stock movement record
+    // Create stock movement record with condition
     const movement: db.StockMovement = {
       id: crypto.randomUUID(),
       item_id: id,
@@ -100,6 +101,7 @@ export function useInventoryItems() {
       entry_method: entryMethod,
       ai_confidence: aiConfidence,
       notes,
+      condition,
       created_at: new Date().toISOString(),
     };
     

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -6,13 +6,34 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInventoryItems, useStockMovements, useDeviceUsers } from '@/hooks/useInventory';
-import { ArrowLeft, Search, Download, Activity, Calendar } from 'lucide-react';
+import { useAuditLogs } from '@/hooks/useAuditLogs';
+import { ArrowLeft, Search, Download, Activity, Calendar, Package, FolderEdit, Palette, Plus, Trash } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { ConditionBadge } from '@/components/stock/ConditionBadge';
+
+interface CombinedLogEntry {
+  id: string;
+  type: 'movement' | 'audit';
+  created_at: string;
+  action: string;
+  action_type: string;
+  user_name: string;
+  item_name: string;
+  item_sku: string;
+  quantity?: number;
+  movement_type?: 'add' | 'remove';
+  entry_method?: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  notes?: string | null;
+  condition?: string;
+}
 
 export default function ActivityLog() {
   const navigate = useNavigate();
   const { items } = useInventoryItems();
-  const { movements, loading } = useStockMovements();
+  const { movements, loading: movementsLoading } = useStockMovements();
+  const { logs: auditLogs, loading: auditLoading } = useAuditLogs();
   const { users } = useDeviceUsers();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,70 +43,150 @@ export default function ActivityLog() {
   const [currentPage, setCurrentPage] = useState(1);
   
   const itemsPerPage = 50;
+  const loading = movementsLoading || auditLoading;
 
-  // Filter movements
-  const filteredMovements = useMemo(() => {
+  // Combine movements and audit logs
+  const combinedLogs = useMemo((): CombinedLogEntry[] => {
+    const entries: CombinedLogEntry[] = [];
+
+    // Add stock movements
+    movements.forEach(movement => {
+      const item = items.find(i => i.id === movement.item_id);
+      const user = users.find(u => u.id === movement.device_user_id);
+      
+      entries.push({
+        id: movement.id,
+        type: 'movement',
+        created_at: movement.created_at,
+        action: movement.movement_type === 'add' ? 'Stock Added' : 'Stock Removed',
+        action_type: movement.movement_type,
+        user_name: user?.name || 'Unknown',
+        item_name: item?.name || 'Unknown Item',
+        item_sku: item?.sku || '',
+        quantity: movement.quantity,
+        movement_type: movement.movement_type,
+        entry_method: movement.entry_method,
+        notes: movement.notes,
+        condition: movement.condition,
+      });
+    });
+
+    // Add audit logs
+    auditLogs.forEach(log => {
+      const user = users.find(u => u.id === log.device_user_id);
+      
+      let action = 'Unknown Action';
+      let actionType = log.action_type;
+      
+      switch (log.action_type) {
+        case 'item_created':
+          action = 'Item Created';
+          break;
+        case 'item_deleted':
+          action = 'Item Deleted';
+          break;
+        case 'category_changed':
+          action = 'Category Changed';
+          break;
+        case 'condition_changed':
+          action = 'Condition Changed';
+          break;
+      }
+
+      entries.push({
+        id: log.id,
+        type: 'audit',
+        created_at: log.created_at,
+        action,
+        action_type: actionType,
+        user_name: user?.name || 'Unknown',
+        item_name: log.item_name || 'Unknown Item',
+        item_sku: log.item_sku || '',
+        old_value: log.old_value,
+        new_value: log.new_value,
+        notes: log.notes,
+      });
+    });
+
+    // Sort by date descending
+    return entries.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [movements, auditLogs, items, users]);
+
+  // Filter combined logs
+  const filteredLogs = useMemo(() => {
     const now = new Date();
     const daysBack = parseInt(dateFilter);
     const startDate = startOfDay(subDays(now, daysBack));
     const endDate = endOfDay(now);
 
-    return movements.filter(movement => {
-      const movementDate = new Date(movement.created_at);
-      const item = items.find(i => i.id === movement.item_id);
+    return combinedLogs.filter(entry => {
+      const entryDate = new Date(entry.created_at);
       
       // Date filter
-      if (!isWithinInterval(movementDate, { start: startDate, end: endDate })) {
+      if (!isWithinInterval(entryDate, { start: startDate, end: endDate })) {
         return false;
       }
       
       // User filter
-      if (userFilter !== 'all' && movement.device_user_id !== userFilter) {
+      if (userFilter !== 'all' && entry.user_name !== users.find(u => u.id === userFilter)?.name) {
         return false;
       }
       
       // Action filter
-      if (actionFilter !== 'all' && movement.movement_type !== actionFilter) {
-        return false;
+      if (actionFilter !== 'all') {
+        if (actionFilter === 'add' && entry.action_type !== 'add') return false;
+        if (actionFilter === 'remove' && entry.action_type !== 'remove') return false;
+        if (actionFilter === 'item_created' && entry.action_type !== 'item_created') return false;
+        if (actionFilter === 'item_deleted' && entry.action_type !== 'item_deleted') return false;
+        if (actionFilter === 'category_changed' && entry.action_type !== 'category_changed') return false;
+        if (actionFilter === 'condition_changed' && entry.action_type !== 'condition_changed') return false;
       }
       
       // Search filter
       if (searchQuery) {
-        const itemName = item?.name?.toLowerCase() || '';
-        const itemSku = item?.sku?.toLowerCase() || '';
         const query = searchQuery.toLowerCase();
-        if (!itemName.includes(query) && !itemSku.includes(query)) {
+        if (!entry.item_name.toLowerCase().includes(query) && 
+            !entry.item_sku.toLowerCase().includes(query)) {
           return false;
         }
       }
       
       return true;
     });
-  }, [movements, items, searchQuery, dateFilter, userFilter, actionFilter]);
+  }, [combinedLogs, searchQuery, dateFilter, userFilter, actionFilter, users]);
 
   // Paginate
-  const paginatedMovements = useMemo(() => {
+  const paginatedLogs = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredMovements.slice(start, start + itemsPerPage);
-  }, [filteredMovements, currentPage]);
+    return filteredLogs.slice(start, start + itemsPerPage);
+  }, [filteredLogs, currentPage]);
 
-  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
 
   // Export to CSV
   const handleExport = () => {
-    const headers = ['Date/Time', 'User', 'Action', 'Item', 'SKU', 'Quantity', 'Entry Method', 'Notes'];
-    const rows = filteredMovements.map(movement => {
-      const item = items.find(i => i.id === movement.item_id);
-      const user = users.find(u => u.id === movement.device_user_id);
+    const headers = ['Date/Time', 'User', 'Action', 'Item', 'SKU', 'Details', 'Method', 'Notes'];
+    const rows = filteredLogs.map(entry => {
+      let details = '';
+      if (entry.type === 'movement') {
+        details = `${entry.movement_type === 'add' ? '+' : '-'}${entry.quantity}${entry.condition ? ` (${entry.condition})` : ''}`;
+      } else {
+        if (entry.old_value || entry.new_value) {
+          details = `${entry.old_value || 'None'} → ${entry.new_value || 'None'}`;
+        }
+      }
+      
       return [
-        format(new Date(movement.created_at), 'yyyy-MM-dd HH:mm:ss'),
-        user?.name || 'Unknown',
-        movement.movement_type === 'add' ? 'Added' : 'Removed',
-        item?.name || 'Unknown Item',
-        item?.sku || '',
-        movement.quantity.toString(),
-        movement.entry_method === 'ai_assisted' ? 'AI Assisted' : 'Manual',
-        movement.notes || ''
+        format(new Date(entry.created_at), 'yyyy-MM-dd HH:mm:ss'),
+        entry.user_name,
+        entry.action,
+        entry.item_name,
+        entry.item_sku,
+        details,
+        entry.entry_method === 'ai_assisted' ? 'AI Assisted' : entry.entry_method === 'manual' ? 'Manual' : '',
+        entry.notes || ''
       ];
     });
     
@@ -100,6 +201,44 @@ export default function ActivityLog() {
     link.download = `activity-log-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const getActionIcon = (actionType: string) => {
+    switch (actionType) {
+      case 'add':
+        return <Plus className="h-4 w-4 text-green-600" />;
+      case 'remove':
+        return <Package className="h-4 w-4 text-orange-600" />;
+      case 'item_created':
+        return <Plus className="h-4 w-4 text-blue-600" />;
+      case 'item_deleted':
+        return <Trash className="h-4 w-4 text-red-600" />;
+      case 'category_changed':
+        return <FolderEdit className="h-4 w-4 text-purple-600" />;
+      case 'condition_changed':
+        return <Palette className="h-4 w-4 text-amber-600" />;
+      default:
+        return <Activity className="h-4 w-4" />;
+    }
+  };
+
+  const getActionColor = (actionType: string) => {
+    switch (actionType) {
+      case 'add':
+        return 'text-green-600 dark:text-green-400';
+      case 'remove':
+        return 'text-orange-600 dark:text-orange-400';
+      case 'item_created':
+        return 'text-blue-600 dark:text-blue-400';
+      case 'item_deleted':
+        return 'text-red-600 dark:text-red-400';
+      case 'category_changed':
+        return 'text-purple-600 dark:text-purple-400';
+      case 'condition_changed':
+        return 'text-amber-600 dark:text-amber-400';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -167,8 +306,12 @@ export default function ActivityLog() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="add">Added</SelectItem>
-                  <SelectItem value="remove">Removed</SelectItem>
+                  <SelectItem value="add">Stock Added</SelectItem>
+                  <SelectItem value="remove">Stock Removed</SelectItem>
+                  <SelectItem value="item_created">Item Created</SelectItem>
+                  <SelectItem value="item_deleted">Item Deleted</SelectItem>
+                  <SelectItem value="category_changed">Category Changed</SelectItem>
+                  <SelectItem value="condition_changed">Condition Changed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -181,14 +324,14 @@ export default function ActivityLog() {
             <CardTitle className="flex items-center justify-between">
               <span>Activity History</span>
               <span className="text-sm font-normal text-muted-foreground">
-                {filteredMovements.length} records
+                {filteredLogs.length} records
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <p className="text-center text-muted-foreground py-8">Loading...</p>
-            ) : paginatedMovements.length === 0 ? (
+            ) : paginatedLogs.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No activity found</p>
             ) : (
               <div className="overflow-x-auto">
@@ -199,55 +342,67 @@ export default function ActivityLog() {
                       <th className="text-left py-3 px-2">User</th>
                       <th className="text-left py-3 px-2">Action</th>
                       <th className="text-left py-3 px-2">Item</th>
-                      <th className="text-right py-3 px-2">Quantity</th>
+                      <th className="text-left py-3 px-2">Details</th>
                       <th className="text-left py-3 px-2">Method</th>
                       <th className="text-left py-3 px-2">Notes</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedMovements.map(movement => {
-                      const item = items.find(i => i.id === movement.item_id);
-                      const user = users.find(u => u.id === movement.device_user_id);
-                      
-                      return (
-                        <tr key={movement.id} className="border-b hover:bg-muted/50">
-                          <td className="py-3 px-2 whitespace-nowrap">
-                            {format(new Date(movement.created_at), 'MMM d, yyyy h:mm a')}
-                          </td>
-                          <td className="py-3 px-2">{user?.name || 'Unknown'}</td>
-                          <td className="py-3 px-2">
-                            <span className={movement.movement_type === 'add' 
-                              ? 'text-green-600 dark:text-green-400' 
-                              : 'text-orange-600 dark:text-orange-400'
-                            }>
-                              {movement.movement_type === 'add' ? 'Added' : 'Removed'}
+                    {paginatedLogs.map(entry => (
+                      <tr key={entry.id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-2 whitespace-nowrap">
+                          {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                        </td>
+                        <td className="py-3 px-2">{entry.user_name}</td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            {getActionIcon(entry.action_type)}
+                            <span className={getActionColor(entry.action_type)}>
+                              {entry.action}
                             </span>
-                          </td>
-                          <td className="py-3 px-2">
-                            <div>
-                              <p className="font-medium">{item?.name || 'Unknown Item'}</p>
-                              <p className="text-xs text-muted-foreground">{item?.sku}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2">
+                          <div>
+                            <p className="font-medium">{entry.item_name}</p>
+                            <p className="text-xs text-muted-foreground">{entry.item_sku}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2">
+                          {entry.type === 'movement' ? (
+                            <div className="flex items-center gap-2">
+                              <span className={`font-semibold ${entry.movement_type === 'add' 
+                                ? 'text-green-600 dark:text-green-400' 
+                                : 'text-orange-600 dark:text-orange-400'
+                              }`}>
+                                {entry.movement_type === 'add' ? '+' : '-'}{entry.quantity}
+                              </span>
+                              {entry.condition && (
+                                <ConditionBadge condition={entry.condition as 'new' | 'good' | 'damaged' | 'broken'} />
+                              )}
                             </div>
-                          </td>
-                          <td className="py-3 px-2 text-right font-semibold">
-                            <span className={movement.movement_type === 'add' 
-                              ? 'text-green-600 dark:text-green-400' 
-                              : 'text-orange-600 dark:text-orange-400'
-                            }>
-                              {movement.movement_type === 'add' ? '+' : '-'}{movement.quantity}
-                            </span>
-                          </td>
-                          <td className="py-3 px-2">
+                          ) : (
+                            entry.old_value || entry.new_value ? (
+                              <span className="text-xs">
+                                <span className="text-muted-foreground">{entry.old_value || 'None'}</span>
+                                <span className="mx-1">→</span>
+                                <span className="font-medium">{entry.new_value || 'None'}</span>
+                              </span>
+                            ) : '-'
+                          )}
+                        </td>
+                        <td className="py-3 px-2">
+                          {entry.entry_method && (
                             <span className="text-xs px-2 py-1 rounded bg-muted">
-                              {movement.entry_method === 'ai_assisted' ? 'AI' : 'Manual'}
+                              {entry.entry_method === 'ai_assisted' ? 'AI' : 'Manual'}
                             </span>
-                          </td>
-                          <td className="py-3 px-2 text-muted-foreground max-w-[200px] truncate">
-                            {movement.notes || '-'}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-muted-foreground max-w-[200px] truncate">
+                          {entry.notes || '-'}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
