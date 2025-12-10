@@ -94,7 +94,15 @@ Deno.serve(async (req) => {
       
       console.log('Webhook signature verified successfully');
     } else {
-      console.warn('WEBHOOK_SECRET not configured - webhook signature verification disabled');
+      // SECURITY: Reject requests when webhook secret is not configured
+      console.error('WEBHOOK_SECRET not configured - rejecting request');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Webhook not configured',
+          message: 'WEBHOOK_SECRET must be set to enable webhook functionality'
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

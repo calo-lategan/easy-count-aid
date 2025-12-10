@@ -1,8 +1,5 @@
 project_id = "oqydejmoqdzipqjqjjlq"
 
-[functions.verify-admin-pin]
-verify_jwt = false
-
 [functions.stock-webhook]
 verify_jwt = false
 
