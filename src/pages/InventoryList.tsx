@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -35,6 +35,8 @@ import { Badge } from '@/components/ui/badge';
 
 export default function InventoryList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const highlightItemId = searchParams.get('highlight');
   const { toast } = useToast();
   const { items, deleteItem, updateItem } = useInventoryItems();
   const { users } = useUsers();
@@ -51,6 +53,18 @@ export default function InventoryList() {
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
+
+  // Handle highlight from URL - open item detail dialog
+  useEffect(() => {
+    if (highlightItemId && items.length > 0) {
+      const itemToHighlight = items.find(item => item.id === highlightItemId);
+      if (itemToHighlight) {
+        setSelectedItem(itemToHighlight);
+        // Clear the URL parameter
+        navigate('/inventory', { replace: true });
+      }
+    }
+  }, [highlightItemId, items, navigate]);
 
   const filteredItems = items.filter(item => {
     // Search filter

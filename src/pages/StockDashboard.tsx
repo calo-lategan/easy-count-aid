@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,8 @@ import {
   FolderTree, 
   BarChart3,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  AlertOctagon
 } from 'lucide-react';
 
 interface InventoryItemExtended {
@@ -22,6 +23,7 @@ interface InventoryItemExtended {
   current_quantity: number;
   category_id?: string | null;
   condition?: 'new' | 'good' | 'damaged' | 'broken';
+  low_stock_threshold?: number | null;
 }
 
 export default function StockDashboard() {
@@ -73,12 +75,24 @@ export default function StockDashboard() {
 
   // Low stock items
   const lowStockItems = useMemo(() => {
-    return items.filter(item => item.current_quantity <= 5);
+    return items.filter(item => {
+      const threshold = item.low_stock_threshold ?? 5;
+      return item.current_quantity <= threshold;
+    });
+  }, [items]);
+
+  // Broken items
+  const brokenItems = useMemo(() => {
+    return (items as InventoryItemExtended[]).filter(item => item.condition === 'broken' && item.current_quantity > 0);
   }, [items]);
 
   // Total stats
   const totalStock = items.reduce((sum, item) => sum + item.current_quantity, 0);
   const totalItems = items.length;
+
+  const navigateToItem = (itemId: string) => {
+    navigate(`/inventory?highlight=${itemId}`);
+  };
 
   return (
     <AppLayout title="Stock Dashboard">
@@ -89,6 +103,38 @@ export default function StockDashboard() {
             Back
           </Button>
         </div>
+
+        {/* Broken Items Alert */}
+        {brokenItems.length > 0 && (
+          <Card className="border-destructive bg-destructive/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertOctagon className="h-5 w-5" />
+                Broken Items Alert
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {brokenItems.map(item => (
+                  <div 
+                    key={item.id} 
+                    className="flex items-center justify-between p-2 bg-background rounded cursor-pointer hover:bg-muted transition-colors"
+                    onClick={() => navigateToItem(item.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium truncate text-foreground hover:underline">{item.name}</p>
+                      <p className="text-sm text-muted-foreground">{item.sku}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ConditionBadge condition="broken" />
+                      <span className="text-xl font-bold text-destructive">{item.current_quantity}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Overview Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -205,12 +251,16 @@ export default function StockDashboard() {
               ) : (
                 <div className="space-y-3">
                   {topItems.map((item, index) => (
-                    <div key={item.id} className="flex items-center gap-3">
+                    <div 
+                      key={item.id} 
+                      className="flex items-center gap-3 cursor-pointer hover:bg-muted p-2 rounded-lg transition-colors"
+                      onClick={() => navigateToItem(item.id)}
+                    >
                       <span className="text-lg font-bold text-muted-foreground w-6">
                         #{index + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{item.name}</p>
+                        <p className="font-medium truncate hover:underline">{item.name}</p>
                         <p className="text-sm text-muted-foreground">{item.sku}</p>
                       </div>
                       <span className="text-xl font-bold">{item.current_quantity}</span>
@@ -235,9 +285,13 @@ export default function StockDashboard() {
               ) : (
                 <div className="space-y-3">
                   {lowStockItems.slice(0, 5).map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-2 bg-destructive/10 rounded">
+                    <div 
+                      key={item.id} 
+                      className="flex items-center justify-between p-2 bg-destructive/10 rounded cursor-pointer hover:bg-destructive/20 transition-colors"
+                      onClick={() => navigateToItem(item.id)}
+                    >
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{item.name}</p>
+                        <p className="font-medium truncate hover:underline">{item.name}</p>
                         <p className="text-sm text-muted-foreground">{item.sku}</p>
                       </div>
                       <span className="text-xl font-bold text-destructive">{item.current_quantity}</span>
