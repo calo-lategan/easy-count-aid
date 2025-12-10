@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NumberPad } from '@/components/inventory/NumberPad';
-import { useInventoryItems, useDeviceUsers } from '@/hooks/useInventory';
+import { useInventoryItems } from '@/hooks/useInventory';
+import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Check, X, Pencil, Plus, Minus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { InventoryItem } from '@/lib/indexedDb';
@@ -31,7 +32,7 @@ export default function ConfirmEntry() {
   const location = useLocation();
   const { toast } = useToast();
   const { items, addItem, updateQuantity } = useInventoryItems();
-  const { currentUser } = useDeviceUsers();
+  const { user } = useAuth();
   
   const state = location.state as LocationState;
   const { aiResult, matchedItem, type } = state || {};
@@ -83,7 +84,7 @@ export default function ConfirmEntry() {
             newItem.id,
             quantity,
             type,
-            currentUser?.id,
+            user?.id,
             aiResult ? 'ai_assisted' : 'manual',
             aiResult?.confidence
           );
@@ -94,7 +95,7 @@ export default function ConfirmEntry() {
           selectedItem.id,
           quantity,
           type,
-          currentUser?.id,
+          user?.id,
           aiResult ? 'ai_assisted' : 'manual',
           aiResult?.confidence,
           isAdjusting ? 'Quantity manually adjusted from AI suggestion' : undefined

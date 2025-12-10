@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useInventoryItems, useDeviceUsers } from '@/hooks/useInventory';
+import { useInventoryItems } from '@/hooks/useInventory';
 import { Camera, ArrowLeft, Loader2, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,7 +20,6 @@ export default function CameraScan() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { items } = useInventoryItems();
-  const { currentUser } = useDeviceUsers();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);

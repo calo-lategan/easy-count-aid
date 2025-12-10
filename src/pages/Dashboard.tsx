@@ -1,9 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { UserSelector } from '@/components/inventory/UserSelector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useInventoryItems, useDeviceUsers, useStockMovements } from '@/hooks/useInventory';
+import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useWebhookListener } from '@/hooks/useWebhookListener';
 import { WebhookConfirmationPopup } from '@/components/webhook/WebhookConfirmationPopup';
 import { Package, Plus, Minus, List, AlertTriangle, BarChart3, FolderTree, Webhook, Settings } from 'lucide-react';
@@ -11,7 +10,6 @@ import { Package, Plus, Minus, List, AlertTriangle, BarChart3, FolderTree, Webho
 export default function Dashboard() {
   const navigate = useNavigate();
   const { items, refresh } = useInventoryItems();
-  const { currentUser } = useDeviceUsers();
   const { movements } = useStockMovements();
   const { pendingWebhook, isPopupOpen, closePopup, confirmWebhook, simulateIncomingWebhook } = useWebhookListener();
   
@@ -27,20 +25,17 @@ export default function Dashboard() {
   return (
     <AppLayout title="Inventory Manager">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header with User Selector and Settings */}
+        {/* Header with Settings */}
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <div className="flex items-center gap-2">
-            <UserSelector />
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-12 w-12"
-              onClick={() => navigate('/settings')}
-            >
-              <Settings className="h-6 w-6" />
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-12 w-12"
+            onClick={() => navigate('/settings')}
+          >
+            <Settings className="h-6 w-6" />
+          </Button>
         </div>
 
         {/* Quick Stats */}
@@ -74,7 +69,7 @@ export default function Dashboard() {
             state: {
               type: 'add'
             }
-          })} disabled={!currentUser}>
+          })}>
               <Plus className="h-8 w-8" />
               Add Stock
             </Button>
@@ -82,7 +77,7 @@ export default function Dashboard() {
             state: {
               type: 'remove'
             }
-          })} disabled={!currentUser}>
+          })}>
               <Minus className="h-8 w-8" />
               Remove Stock
             </Button>
@@ -131,14 +126,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* User Warning */}
-        {!currentUser && <Card className="border-amber-500 bg-amber-500/10">
-            <CardContent className="p-4 text-center">
-              <p className="text-amber-700 dark:text-amber-400 font-medium">
-                Please select a user above before adding or removing stock
-              </p>
-            </CardContent>
-          </Card>}
 
         {/* Recent Activity */}
         {recentChanges.length > 0 && <Card>
