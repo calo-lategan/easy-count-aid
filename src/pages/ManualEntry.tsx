@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NumberPad } from '@/components/inventory/NumberPad';
 import { ConditionSelector } from '@/components/stock/ConditionSelector';
-import { useInventoryItems, useDeviceUsers } from '@/hooks/useInventory';
+import { useInventoryItems } from '@/hooks/useInventory';
 import { useAuditLogs } from '@/hooks/useAuditLogs';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Plus, Minus, Search, Lock } from 'lucide-react';
@@ -23,7 +23,6 @@ export default function ManualEntry() {
   const location = useLocation();
   const { toast } = useToast();
   const { items, addItem, updateQuantity } = useInventoryItems();
-  const { currentUser } = useDeviceUsers();
   const { addLog } = useAuditLogs();
   const { isAdmin, user } = useAuth();
   
@@ -95,7 +94,7 @@ export default function ManualEntry() {
         // Log item creation
         await addLog({
           user_id: user?.id || null,
-          device_user_id: currentUser?.id || null,
+          device_user_id: null,
           action_type: 'item_created',
           item_id: newItem?.id || null,
           item_name: newItemName,
@@ -125,7 +124,7 @@ export default function ManualEntry() {
           selectedItem.id,
           qty,
           type,
-          currentUser?.id,
+          user?.id,
           'manual',
           undefined,
           undefined,

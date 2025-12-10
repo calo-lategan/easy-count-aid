@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useInventoryItems, useStockMovements, useDeviceUsers } from '@/hooks/useInventory';
+import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useAuditLogs } from '@/hooks/useAuditLogs';
+import { useUsers } from '@/hooks/useUsers';
 import { ArrowLeft, Search, Download, Activity, Calendar, Package, FolderEdit, Palette, Plus, Trash } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ConditionBadge } from '@/components/stock/ConditionBadge';
@@ -34,7 +35,7 @@ export default function ActivityLog() {
   const { items } = useInventoryItems();
   const { movements, loading: movementsLoading } = useStockMovements();
   const { logs: auditLogs, loading: auditLoading } = useAuditLogs();
-  const { users } = useDeviceUsers();
+  const { users } = useUsers();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('7');
@@ -52,7 +53,7 @@ export default function ActivityLog() {
     // Add stock movements
     movements.forEach(movement => {
       const item = items.find(i => i.id === movement.item_id);
-      const user = users.find(u => u.id === movement.device_user_id);
+      const user = users.find(u => u.user_id === movement.device_user_id);
       
       entries.push({
         id: movement.id,
@@ -60,7 +61,7 @@ export default function ActivityLog() {
         created_at: movement.created_at,
         action: movement.movement_type === 'add' ? 'Stock Added' : 'Stock Removed',
         action_type: movement.movement_type,
-        user_name: user?.name || 'Unknown',
+        user_name: user?.display_name || 'Unknown',
         item_name: item?.name || 'Unknown Item',
         item_sku: item?.sku || '',
         quantity: movement.quantity,
@@ -73,7 +74,7 @@ export default function ActivityLog() {
 
     // Add audit logs
     auditLogs.forEach(log => {
-      const user = users.find(u => u.id === log.device_user_id);
+      const user = users.find(u => u.user_id === log.user_id);
       
       let action = 'Unknown Action';
       let actionType = log.action_type;
@@ -99,7 +100,7 @@ export default function ActivityLog() {
         created_at: log.created_at,
         action,
         action_type: actionType,
-        user_name: user?.name || 'Unknown',
+        user_name: user?.display_name || 'Unknown',
         item_name: log.item_name || 'Unknown Item',
         item_sku: log.item_sku || '',
         old_value: log.old_value,
@@ -130,7 +131,7 @@ export default function ActivityLog() {
       }
       
       // User filter
-      if (userFilter !== 'all' && entry.user_name !== users.find(u => u.id === userFilter)?.name) {
+      if (userFilter !== 'all' && entry.user_name !== users.find(u => u.user_id === userFilter)?.display_name) {
         return false;
       }
       
@@ -295,7 +296,7 @@ export default function ActivityLog() {
                 <SelectContent>
                   <SelectItem value="all">All Users</SelectItem>
                   {users.map(user => (
-                    <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
+                    <SelectItem key={user.user_id} value={user.user_id}>{user.display_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

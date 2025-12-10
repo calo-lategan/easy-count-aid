@@ -4,8 +4,9 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useInventoryItems, useStockMovements, useDeviceUsers } from '@/hooks/useInventory';
+import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useCategories } from '@/hooks/useCategories';
+import { useUsers } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Search, Package, Plus, AlertTriangle, Trash2, Pencil, TrendingDown } from 'lucide-react';
 import {
@@ -36,7 +37,7 @@ export default function InventoryList() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { items, deleteItem, updateItem } = useInventoryItems();
-  const { users } = useDeviceUsers();
+  const { users } = useUsers();
   const { categories, getCategoryPath } = useCategories();
   const { isAdmin } = useAuth();
   
@@ -294,7 +295,7 @@ export default function InventoryList() {
 
 interface ItemDetailDialogProps {
   item: InventoryItem | null;
-  users: { id: string; name: string }[];
+  users: { user_id: string; display_name: string }[];
   categories: { id: string; name: string }[];
   getCategoryPath: (id: string) => string;
   onClose: () => void;
@@ -391,7 +392,7 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
                 <p className="text-sm text-muted-foreground">No activity recorded</p>
               ) : (
                 movements.slice(0, 10).map(movement => {
-                  const user = users.find(u => u.id === movement.device_user_id);
+                  const user = users.find(u => u.user_id === movement.device_user_id);
                   return (
                     <div 
                       key={movement.id} 
@@ -413,7 +414,7 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
                         </span>
                       </div>
                       <div className="text-right text-xs text-muted-foreground">
-                        <p>{user?.name || 'Unknown User'}</p>
+                        <p>{user?.display_name || 'Unknown User'}</p>
                         <p>{new Date(movement.created_at).toLocaleString()}</p>
                       </div>
                     </div>
