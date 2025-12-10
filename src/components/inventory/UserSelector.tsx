@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDeviceUsers } from '@/hooks/useInventory';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,10 +21,33 @@ import { User, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function UserSelector() {
-  const { users, currentUser, addUser, selectUser } = useDeviceUsers();
+  const { users, currentUser, addUser, selectUser, loading } = useDeviceUsers();
+  const { user: authUser, isAdmin } = useAuth();
   const [newUserName, setNewUserName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
   const { toast } = useToast();
+
+  // Auto-select admin's device user based on profile display name
+  useEffect(() => {
+    if (loading || hasAutoSelected || currentUser) return;
+    
+    // If authenticated user is admin and no user selected yet, try to auto-select
+    if (authUser && isAdmin && users.length > 0) {
+      // Try to find a matching device user by name (case-insensitive)
+      const adminDisplayName = authUser.user_metadata?.display_name || authUser.email?.split('@')[0];
+      
+      const matchingUser = users.find(u => 
+        u.name.toLowerCase() === adminDisplayName?.toLowerCase() ||
+        u.name.toLowerCase() === 'calo' // Hardcoded for the specific admin user
+      );
+      
+      if (matchingUser) {
+        selectUser(matchingUser);
+        setHasAutoSelected(true);
+      }
+    }
+  }, [authUser, isAdmin, users, loading, currentUser, hasAutoSelected, selectUser]);
 
   const handleAddUser = async () => {
     if (!newUserName.trim()) return;
@@ -40,6 +64,7 @@ export function UserSelector() {
   const handleSelectUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
     selectUser(user || null);
+    setHasAutoSelected(true); // Prevent auto-select from overriding manual selection
   };
 
   return (
