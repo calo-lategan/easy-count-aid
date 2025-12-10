@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useInventoryItems, useDeviceUsers, useStockMovements } from '@/hooks/useInventory';
 import { useWebhookListener } from '@/hooks/useWebhookListener';
-import { useSecureAuth } from '@/hooks/useSecureAuth';
 import { WebhookConfirmationPopup } from '@/components/webhook/WebhookConfirmationPopup';
-import { SettingsAuthDialog } from '@/components/auth/SettingsAuthDialog';
 import { Package, Plus, Minus, List, AlertTriangle, BarChart3, FolderTree, Webhook, Settings } from 'lucide-react';
 
 export default function Dashboard() {
@@ -16,7 +14,6 @@ export default function Dashboard() {
   const { currentUser } = useDeviceUsers();
   const { movements } = useStockMovements();
   const { pendingWebhook, isPopupOpen, closePopup, confirmWebhook, simulateIncomingWebhook } = useWebhookListener();
-  const { isLoggedIn, login, logout } = useSecureAuth();
   
   const totalItems = items.length;
   const lowStockItems = items.filter(item => item.current_quantity <= 5).length;
@@ -35,11 +32,14 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
             <UserSelector />
-            <SettingsAuthDialog 
-              isLoggedIn={isLoggedIn} 
-              onLogin={login} 
-              onLogout={logout} 
-            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-12 w-12"
+              onClick={() => navigate('/settings')}
+            >
+              <Settings className="h-6 w-6" />
+            </Button>
           </div>
         </div>
 

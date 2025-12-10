@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCategories, CategoryWithChildren } from '@/hooks/useCategories';
-import { useSecureAuth } from '@/hooks/useSecureAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +26,7 @@ import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, FolderTree, Lock } fro
 
 export function CategoryManager() {
   const { categories, addCategory, updateCategory, deleteCategory, buildCategoryTree } = useCategories();
-  const { isAdmin, isLoggedIn } = useSecureAuth();
+  const { isAdmin, isAuthenticated } = useAuth();
   const { toast } = useToast();
   
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -162,13 +162,13 @@ export function CategoryManager() {
     );
   };
 
-  if (!isLoggedIn) {
+  if (!isAuthenticated) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
           <Lock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-lg font-medium">Admin Login Required</p>
-          <p className="text-muted-foreground">Please login via Settings to manage categories</p>
+          <p className="text-lg font-medium">Login Required</p>
+          <p className="text-muted-foreground">Please sign in to view categories</p>
         </CardContent>
       </Card>
     );

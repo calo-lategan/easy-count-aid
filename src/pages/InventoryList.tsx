@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useInventoryItems, useStockMovements, useDeviceUsers } from '@/hooks/useInventory';
 import { useCategories } from '@/hooks/useCategories';
+import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Search, Package, Plus, AlertTriangle, Trash2, Pencil, TrendingDown } from 'lucide-react';
 import {
   Dialog,
@@ -37,6 +38,7 @@ export default function InventoryList() {
   const { items, deleteItem, updateItem } = useInventoryItems();
   const { users } = useDeviceUsers();
   const { categories, getCategoryPath } = useCategories();
+  const { isAdmin } = useAuth();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -249,6 +251,7 @@ export default function InventoryList() {
             setEditDialogOpen(true);
             setSelectedItem(null);
           }}
+          isAdmin={isAdmin}
         />
 
         {/* Edit Dialog */}
@@ -297,9 +300,10 @@ interface ItemDetailDialogProps {
   onClose: () => void;
   onDelete: (item: InventoryItem) => void;
   onEdit: (item: InventoryItem) => void;
+  isAdmin: boolean;
 }
 
-function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, onDelete, onEdit }: ItemDetailDialogProps) {
+function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, onDelete, onEdit, isAdmin }: ItemDetailDialogProps) {
   const { movements } = useStockMovements(item?.id);
 
   if (!item) return null;
@@ -394,14 +398,16 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
               <Pencil className="h-4 w-4" />
               Edit Item
             </Button>
-            <Button
-              variant="destructive"
-              className="flex-1 gap-2"
-              onClick={() => onDelete(item)}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete Item
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                className="flex-1 gap-2"
+                onClick={() => onDelete(item)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Item
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
