@@ -56,7 +56,6 @@ export default function InventoryList() {
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
-  const [showBrokenOnly, setShowBrokenOnly] = useState(false);
 
   // Calculate condition breakdown per item from movements
   const itemConditionBreakdowns = useMemo(() => {
@@ -110,14 +109,11 @@ export default function InventoryList() {
     // Category filter
     const matchesCategory = !selectedCategory || item.category_id === selectedCategory;
     
-    // Condition filter
-    const matchesCondition = !selectedCondition || item.condition === selectedCondition;
+    // Condition filter - check if item has stock of the selected condition
+    const matchesCondition = !selectedCondition || 
+      (itemConditionBreakdowns[item.id]?.[selectedCondition] || 0) > 0;
     
-    // Broken stock filter
-    const hasBrokenStock = (itemConditionBreakdowns[item.id]?.broken || 0) > 0;
-    const matchesBrokenFilter = !showBrokenOnly || hasBrokenStock;
-    
-    return matchesSearch && matchesCategory && matchesCondition && matchesBrokenFilter;
+    return matchesSearch && matchesCategory && matchesCondition;
   });
 
   // Helper function to get condition summary for an item
@@ -212,10 +208,8 @@ export default function InventoryList() {
           categories={categories}
           selectedCategory={selectedCategory}
           selectedCondition={selectedCondition}
-          showBrokenOnly={showBrokenOnly}
           onCategoryChange={setSelectedCategory}
           onConditionChange={setSelectedCondition}
-          onBrokenOnlyChange={setShowBrokenOnly}
         />
 
         {/* Items List */}
