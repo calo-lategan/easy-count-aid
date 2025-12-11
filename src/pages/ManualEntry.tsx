@@ -22,7 +22,7 @@ export default function ManualEntry() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { items, addItem, updateQuantity } = useInventoryItems();
+  const { items, addItem, updateQuantity, addStockMovement } = useInventoryItems();
   const { addLog } = useAuditLogs();
   const { isAdmin, user } = useAuth();
   
@@ -90,6 +90,20 @@ export default function ManualEntry() {
           current_quantity: initialQty,
           condition,
         });
+
+        // Create a stock movement for the initial quantity so condition breakdown works
+        if (initialQty > 0 && newItem) {
+          await addStockMovement(
+            newItem.id,
+            initialQty,
+            'add',
+            user?.id,
+            'manual',
+            undefined,
+            'Initial stock',
+            condition
+          );
+        }
 
         // Log item creation
         await addLog({
