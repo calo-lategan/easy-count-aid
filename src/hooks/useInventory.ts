@@ -117,6 +117,41 @@ export function useInventoryItems() {
     return updated;
   };
 
+  // Create a stock movement record without changing quantity (for initial stock)
+  const addStockMovement = async (
+    itemId: string,
+    quantity: number,
+    type: 'add' | 'remove',
+    userId?: string,
+    entryMethod: 'ai_assisted' | 'manual' = 'manual',
+    aiConfidence?: number,
+    notes?: string,
+    condition?: 'new' | 'good' | 'damaged' | 'broken'
+  ) => {
+    const movement: db.StockMovement = {
+      id: crypto.randomUUID(),
+      item_id: itemId,
+      device_user_id: userId,
+      movement_type: type,
+      quantity,
+      entry_method: entryMethod,
+      ai_confidence: aiConfidence,
+      notes,
+      condition,
+      created_at: new Date().toISOString(),
+    };
+    
+    await db.saveMovement(movement);
+    await addToSyncQueue({
+      action: 'insert',
+      table_name: 'stock_movements',
+      record_data: movement,
+    });
+    
+    triggerSync();
+    return movement;
+  };
+
   const deleteItem = async (id: string) => {
     await db.deleteItem(id);
     await addToSyncQueue({
@@ -135,6 +170,7 @@ export function useInventoryItems() {
     addItem,
     updateItem,
     updateQuantity,
+    addStockMovement,
     deleteItem,
     refresh: loadItems,
   };
