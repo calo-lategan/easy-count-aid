@@ -1,25 +1,29 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, AlertOctagon } from 'lucide-react';
 import { Category } from '@/hooks/useCategories';
 
 interface InventoryFiltersProps {
   categories: Category[];
   selectedCategory: string | null;
   selectedCondition: string | null;
+  showBrokenOnly?: boolean;
   onCategoryChange: (value: string | null) => void;
   onConditionChange: (value: string | null) => void;
+  onBrokenOnlyChange?: (value: boolean) => void;
 }
 
 export function InventoryFilters({
   categories,
   selectedCategory,
   selectedCondition,
+  showBrokenOnly = false,
   onCategoryChange,
   onConditionChange,
+  onBrokenOnlyChange,
 }: InventoryFiltersProps) {
-  const hasFilters = selectedCategory || selectedCondition;
+  const hasFilters = selectedCategory || selectedCondition || showBrokenOnly;
 
   return (
     <div className="space-y-3">
@@ -50,11 +54,24 @@ export function InventoryFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Conditions</SelectItem>
+            <SelectItem value="new">New</SelectItem>
             <SelectItem value="good">Good</SelectItem>
             <SelectItem value="damaged">Damaged</SelectItem>
             <SelectItem value="broken">Broken</SelectItem>
           </SelectContent>
         </Select>
+
+        {onBrokenOnlyChange && (
+          <Button
+            variant={showBrokenOnly ? "destructive" : "outline"}
+            size="sm"
+            onClick={() => onBrokenOnlyChange(!showBrokenOnly)}
+            className="gap-1"
+          >
+            <AlertOctagon className="h-4 w-4" />
+            {showBrokenOnly ? 'Showing Broken' : 'Has Broken Stock'}
+          </Button>
+        )}
 
         {hasFilters && (
           <Button 
@@ -63,6 +80,7 @@ export function InventoryFilters({
             onClick={() => {
               onCategoryChange(null);
               onConditionChange(null);
+              onBrokenOnlyChange?.(false);
             }}
             className="gap-1"
           >
@@ -89,6 +107,15 @@ export function InventoryFilters({
               <X 
                 className="h-3 w-3 cursor-pointer" 
                 onClick={() => onConditionChange(null)}
+              />
+            </Badge>
+          )}
+          {showBrokenOnly && (
+            <Badge variant="destructive" className="gap-1">
+              Has Broken Stock
+              <X 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => onBrokenOnlyChange?.(false)}
               />
             </Badge>
           )}

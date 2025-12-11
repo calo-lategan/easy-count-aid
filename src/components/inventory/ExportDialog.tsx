@@ -136,11 +136,11 @@ export function ExportDialog({
   const generateExportData = () => {
     return items.map((item, index) => ({
       'RowNumber': index + 1,
-      'lId': item.id,
+      'lId': item.sku, // lId is the SKU code
       'Short Name': item.name.substring(0, 20),
       'Name': item.name,
       'Remarks': '',
-      'Stock Keeping Unit': item.sku,
+      'Stock Keeping Unit': '', // Keep blank - represents storage duration
       'StockMaintain': '',
       'Capacity': '',
       'Used': item.current_quantity,
