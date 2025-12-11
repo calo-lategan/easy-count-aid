@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Download, FileSpreadsheet, Table } from 'lucide-react';
 import { InventoryItem, StockMovement } from '@/lib/indexedDb';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 
 interface ExportDialogProps {
@@ -177,27 +177,62 @@ export function ExportDialog({
       const worksheet = XLSX.utils.json_to_sheet(data, { header: COLUMN_HEADERS });
       const workbook = XLSX.utils.book_new();
       
-      // Set column widths
-      const colWidths = COLUMN_HEADERS.map(header => ({ wch: Math.max(header.length + 2, 15) }));
+      // Set column widths based on content and header length
+      const colWidths = COLUMN_HEADERS.map((header) => {
+        let maxWidth = header.length;
+        data.forEach(row => {
+          const value = String(row[header as keyof typeof row] || '');
+          maxWidth = Math.max(maxWidth, value.length);
+        });
+        return { wch: Math.min(Math.max(maxWidth + 2, 12), 50) };
+      });
       worksheet['!cols'] = colWidths;
 
       if (exportFormat === 'excel') {
-        // Apply styling for Excel - frozen headers with blue background
-        // Note: xlsx library has limited styling support, but we can set frozen panes
-        worksheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
-        
-        // Add header styles (blue background, white text, bold)
+        // Apply blue header styling with xlsx-js-style
         const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
         for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
           const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
           if (worksheet[cellAddress]) {
             worksheet[cellAddress].s = {
               fill: { fgColor: { rgb: '4472C4' } },
-              font: { bold: true, color: { rgb: 'FFFFFF' } },
-              alignment: { horizontal: 'center' }
+              font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+              alignment: { horizontal: 'center', vertical: 'center' },
+              border: {
+                top: { style: 'thin', color: { rgb: '000000' } },
+                bottom: { style: 'thin', color: { rgb: '000000' } },
+                left: { style: 'thin', color: { rgb: '000000' } },
+                right: { style: 'thin', color: { rgb: '000000' } },
+              },
             };
           }
         }
+        
+        // Add light borders to data cells
+        for (let row = 1; row <= headerRange.e.r; row++) {
+          for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+            if (worksheet[cellAddress]) {
+              worksheet[cellAddress].s = {
+                border: {
+                  top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                  bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                  left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                  right: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                },
+                alignment: { vertical: 'center' },
+              };
+            }
+          }
+        }
+        
+        // Set frozen panes - freeze first row (header)
+        if (!workbook.Workbook) workbook.Workbook = {};
+        if (!workbook.Workbook.Views) workbook.Workbook.Views = [];
+        workbook.Workbook.Views[0] = { RTL: false };
+        
+        // Create sheet views with frozen panes
+        worksheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
         
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
         

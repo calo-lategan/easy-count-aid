@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useAuditLogs } from '@/hooks/useAuditLogs';
 import { useUsers } from '@/hooks/useUsers';
-import { ArrowLeft, Search, Download, Activity, Calendar, Package, FolderEdit, Palette, Plus, Trash } from 'lucide-react';
+import { ArrowLeft, Search, Download, Activity, Calendar, Package, FolderEdit, Palette, Plus, Trash, LogIn, LogOut, UserPlus } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ConditionBadge } from '@/components/stock/ConditionBadge';
 
@@ -92,6 +92,15 @@ export default function ActivityLog() {
         case 'condition_changed':
           action = 'Condition Changed';
           break;
+        case 'user_signed_up':
+          action = 'User Signed Up';
+          break;
+        case 'user_signed_in':
+          action = 'User Signed In';
+          break;
+        case 'user_signed_out':
+          action = 'User Signed Out';
+          break;
       }
 
       entries.push({
@@ -100,8 +109,8 @@ export default function ActivityLog() {
         created_at: log.created_at,
         action,
         action_type: actionType,
-        user_name: user?.display_name || 'Unknown',
-        item_name: log.item_name || 'Unknown Item',
+        user_name: user?.display_name || log.item_name || 'Unknown',
+        item_name: log.action_type.startsWith('user_') ? log.item_name || 'User' : log.item_name || 'Unknown Item',
         item_sku: log.item_sku || '',
         old_value: log.old_value,
         new_value: log.new_value,
@@ -218,6 +227,12 @@ export default function ActivityLog() {
         return <FolderEdit className="h-4 w-4 text-purple-600" />;
       case 'condition_changed':
         return <Palette className="h-4 w-4 text-amber-600" />;
+      case 'user_signed_up':
+        return <UserPlus className="h-4 w-4 text-emerald-600" />;
+      case 'user_signed_in':
+        return <LogIn className="h-4 w-4 text-sky-600" />;
+      case 'user_signed_out':
+        return <LogOut className="h-4 w-4 text-slate-600" />;
       default:
         return <Activity className="h-4 w-4" />;
     }
@@ -237,6 +252,12 @@ export default function ActivityLog() {
         return 'text-purple-600 dark:text-purple-400';
       case 'condition_changed':
         return 'text-amber-600 dark:text-amber-400';
+      case 'user_signed_up':
+        return 'text-emerald-600 dark:text-emerald-400';
+      case 'user_signed_in':
+        return 'text-sky-600 dark:text-sky-400';
+      case 'user_signed_out':
+        return 'text-slate-600 dark:text-slate-400';
       default:
         return '';
     }
@@ -313,6 +334,9 @@ export default function ActivityLog() {
                   <SelectItem value="item_deleted">Item Deleted</SelectItem>
                   <SelectItem value="category_changed">Category Changed</SelectItem>
                   <SelectItem value="condition_changed">Condition Changed</SelectItem>
+                  <SelectItem value="user_signed_up">User Signed Up</SelectItem>
+                  <SelectItem value="user_signed_in">User Signed In</SelectItem>
+                  <SelectItem value="user_signed_out">User Signed Out</SelectItem>
                 </SelectContent>
               </Select>
             </div>
