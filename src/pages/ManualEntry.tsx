@@ -92,12 +92,13 @@ export default function ManualEntry() {
         });
 
         // Create a stock movement for the initial quantity so condition breakdown works
+        // Note: Pass null for device_user_id since we're using auth user tracking
         if (initialQty > 0 && newItem) {
           await addStockMovement(
             newItem.id,
             initialQty,
             'add',
-            user?.id,
+            undefined, // device_user_id - not using device users for this action
             'manual',
             undefined,
             'Initial stock',
@@ -105,12 +106,12 @@ export default function ManualEntry() {
           );
         }
 
-        // Log item creation
+        // Log item creation - don't pass item_id since item hasn't synced to DB yet
         await addLog({
           user_id: user?.id || null,
           device_user_id: null,
           action_type: 'item_created',
-          item_id: newItem?.id || null,
+          item_id: null, // Don't reference item_id - it doesn't exist in DB yet
           item_name: newItemName,
           item_sku: newItemSku,
           old_value: null,
@@ -138,12 +139,25 @@ export default function ManualEntry() {
           selectedItem.id,
           qty,
           type,
-          user?.id,
+          undefined, // device_user_id - not using device users, auth user is tracked separately
           'manual',
           undefined,
           undefined,
           condition
         );
+
+        // Log stock update with item name and SKU
+        await addLog({
+          user_id: user?.id || null,
+          device_user_id: null,
+          action_type: type === 'add' ? 'stock_added' : 'stock_removed',
+          item_id: null, // Don't reference item_id to avoid FK constraint issues
+          item_name: selectedItem.name,
+          item_sku: selectedItem.sku,
+          old_value: `${selectedItem.current_quantity}`,
+          new_value: `${type === 'add' ? selectedItem.current_quantity + qty : selectedItem.current_quantity - qty}`,
+          notes: `${type === 'add' ? 'Added' : 'Removed'} ${qty} units (${condition})`,
+        });
 
         toast({
           title: 'Stock Updated',
