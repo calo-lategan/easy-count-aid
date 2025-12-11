@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,38 @@ export default function InventoryList() {
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
+  const [showBrokenOnly, setShowBrokenOnly] = useState(false);
+
+  // Calculate condition breakdown per item from movements
+  const itemConditionBreakdowns = useMemo(() => {
+    const breakdowns: Record<string, Record<string, number>> = {};
+    
+    movements.forEach(movement => {
+      const itemId = movement.item_id;
+      const condition = movement.condition || 'good';
+      
+      if (!breakdowns[itemId]) {
+        breakdowns[itemId] = { new: 0, good: 0, damaged: 0, broken: 0 };
+      }
+      
+      if (movement.movement_type === 'add') {
+        breakdowns[itemId][condition] += movement.quantity;
+      } else {
+        breakdowns[itemId][condition] -= movement.quantity;
+      }
+    });
+
+    // Ensure no negative values
+    Object.keys(breakdowns).forEach(itemId => {
+      Object.keys(breakdowns[itemId]).forEach(condition => {
+        if (breakdowns[itemId][condition] < 0) {
+          breakdowns[itemId][condition] = 0;
+        }
+      });
+    });
+
+    return breakdowns;
+  }, [movements]);
 
   // Handle highlight from URL - open item detail dialog
   useEffect(() => {
@@ -81,8 +113,26 @@ export default function InventoryList() {
     // Condition filter
     const matchesCondition = !selectedCondition || item.condition === selectedCondition;
     
-    return matchesSearch && matchesCategory && matchesCondition;
+    // Broken stock filter
+    const hasBrokenStock = (itemConditionBreakdowns[item.id]?.broken || 0) > 0;
+    const matchesBrokenFilter = !showBrokenOnly || hasBrokenStock;
+    
+    return matchesSearch && matchesCategory && matchesCondition && matchesBrokenFilter;
   });
+
+  // Helper function to get condition summary for an item
+  const getConditionSummary = (itemId: string) => {
+    const breakdown = itemConditionBreakdowns[itemId];
+    if (!breakdown) return null;
+    
+    const parts: { condition: 'new' | 'good' | 'damaged' | 'broken'; qty: number }[] = [];
+    if (breakdown.new > 0) parts.push({ condition: 'new', qty: breakdown.new });
+    if (breakdown.good > 0) parts.push({ condition: 'good', qty: breakdown.good });
+    if (breakdown.damaged > 0) parts.push({ condition: 'damaged', qty: breakdown.damaged });
+    if (breakdown.broken > 0) parts.push({ condition: 'broken', qty: breakdown.broken });
+    
+    return parts.length > 0 ? parts : null;
+  };
 
   const handleDelete = async () => {
     if (!itemToDelete) return;
@@ -162,8 +212,10 @@ export default function InventoryList() {
           categories={categories}
           selectedCategory={selectedCategory}
           selectedCondition={selectedCondition}
+          showBrokenOnly={showBrokenOnly}
           onCategoryChange={setSelectedCategory}
           onConditionChange={setSelectedCondition}
+          onBrokenOnlyChange={setShowBrokenOnly}
         />
 
         {/* Items List */}
@@ -238,8 +290,20 @@ export default function InventoryList() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    {item.condition && <ConditionBadge condition={item.condition} />}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {(() => {
+                      const conditionSummary = getConditionSummary(item.id);
+                      if (conditionSummary && conditionSummary.length > 0) {
+                        return conditionSummary.map(({ condition, qty }) => (
+                          <div key={condition} className="flex items-center gap-1">
+                            <ConditionBadge condition={condition} />
+                            <span className="text-xs font-medium">{qty}</span>
+                          </div>
+                        ));
+                      }
+                      // Fallback to default condition if no movement data
+                      return item.condition && <ConditionBadge condition={item.condition} />;
+                    })()}
                     <Button 
                       variant="ghost" 
                       size="sm"
