@@ -33,6 +33,15 @@ serve(async (req) => {
   }
 
   try {
+    // Verify authentication - JWT is now required via config.toml
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Rate limiting based on client IP or a fallback identifier
     const clientId = req.headers.get('x-forwarded-for') || 
                      req.headers.get('x-real-ip') || 
