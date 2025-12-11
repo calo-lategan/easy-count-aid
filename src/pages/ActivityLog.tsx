@@ -92,6 +92,12 @@ export default function ActivityLog() {
         case 'condition_changed':
           action = 'Condition Changed';
           break;
+        case 'stock_added':
+          action = 'Stock Added';
+          break;
+        case 'stock_removed':
+          action = 'Stock Removed';
+          break;
         case 'user_signed_up':
           action = 'User Signed Up';
           break;
@@ -216,8 +222,10 @@ export default function ActivityLog() {
   const getActionIcon = (actionType: string) => {
     switch (actionType) {
       case 'add':
+      case 'stock_added':
         return <Plus className="h-4 w-4 text-green-600" />;
       case 'remove':
+      case 'stock_removed':
         return <Package className="h-4 w-4 text-orange-600" />;
       case 'item_created':
         return <Plus className="h-4 w-4 text-blue-600" />;
@@ -241,8 +249,10 @@ export default function ActivityLog() {
   const getActionColor = (actionType: string) => {
     switch (actionType) {
       case 'add':
+      case 'stock_added':
         return 'text-green-600 dark:text-green-400';
       case 'remove':
+      case 'stock_removed':
         return 'text-orange-600 dark:text-orange-400';
       case 'item_created':
         return 'text-blue-600 dark:text-blue-400';
