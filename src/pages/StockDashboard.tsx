@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useInventoryItems } from '@/hooks/useInventory';
+import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useCategories } from '@/hooks/useCategories';
 import { ConditionBadge } from '@/components/stock/ConditionBadge';
 import { 
@@ -29,6 +29,7 @@ interface InventoryItemExtended {
 export default function StockDashboard() {
   const navigate = useNavigate();
   const { items } = useInventoryItems();
+  const { movements } = useStockMovements(); // Get all movements across all items
   const { categories, getCategoryPath } = useCategories();
 
   // Calculate stock by category
@@ -52,19 +53,50 @@ export default function StockDashboard() {
     return Array.from(categoryMap.values()).sort((a, b) => b.total - a.total);
   }, [items, categories, getCategoryPath]);
 
-  // Calculate stock by condition
+  // Calculate stock by condition from actual stock movements (not item's default condition)
   const stockByCondition = useMemo(() => {
     const conditions = { new: 0, good: 0, damaged: 0, broken: 0 };
     
-    (items as InventoryItemExtended[]).forEach(item => {
-      const condition = item.condition || 'good';
+    movements.forEach(movement => {
+      const condition = movement.condition || 'good';
       if (condition in conditions) {
-        conditions[condition as keyof typeof conditions] += item.current_quantity;
+        if (movement.movement_type === 'add') {
+          conditions[condition as keyof typeof conditions] += movement.quantity;
+        } else {
+          conditions[condition as keyof typeof conditions] -= movement.quantity;
+        }
+      }
+    });
+
+    // Ensure no negative values
+    Object.keys(conditions).forEach(key => {
+      if (conditions[key as keyof typeof conditions] < 0) {
+        conditions[key as keyof typeof conditions] = 0;
       }
     });
 
     return conditions;
-  }, [items]);
+  }, [movements]);
+
+  // Calculate broken stock quantity per item from movements
+  const itemBrokenQuantities = useMemo(() => {
+    const brokenByItem: Record<string, number> = {};
+    
+    movements.forEach(movement => {
+      if (movement.condition === 'broken') {
+        if (!brokenByItem[movement.item_id]) {
+          brokenByItem[movement.item_id] = 0;
+        }
+        if (movement.movement_type === 'add') {
+          brokenByItem[movement.item_id] += movement.quantity;
+        } else {
+          brokenByItem[movement.item_id] -= movement.quantity;
+        }
+      }
+    });
+
+    return brokenByItem;
+  }, [movements]);
 
   // Top items by quantity
   const topItems = useMemo(() => {
@@ -81,10 +113,15 @@ export default function StockDashboard() {
     });
   }, [items]);
 
-  // Broken items
+  // Items with broken stock (based on movements, not default condition)
   const brokenItems = useMemo(() => {
-    return (items as InventoryItemExtended[]).filter(item => item.condition === 'broken' && item.current_quantity > 0);
-  }, [items]);
+    return (items as InventoryItemExtended[])
+      .filter(item => (itemBrokenQuantities[item.id] || 0) > 0)
+      .map(item => ({
+        ...item,
+        brokenQuantity: itemBrokenQuantities[item.id] || 0
+      }));
+  }, [items, itemBrokenQuantities]);
 
   // Total stats
   const totalStock = items.reduce((sum, item) => sum + item.current_quantity, 0);
@@ -110,7 +147,7 @@ export default function StockDashboard() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-destructive">
                 <AlertOctagon className="h-5 w-5" />
-                Broken Items Alert
+                Broken Items Alert ({stockByCondition.broken} total broken)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -127,7 +164,7 @@ export default function StockDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                       <ConditionBadge condition="broken" />
-                      <span className="text-xl font-bold text-destructive">{item.current_quantity}</span>
+                      <span className="text-xl font-bold text-destructive">{item.brokenQuantity}</span>
                     </div>
                   </div>
                 ))}
