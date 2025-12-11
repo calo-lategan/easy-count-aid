@@ -1,7 +1,1 @@
-project_id = "oqydejmoqdzipqjqjjlq"
-
-[functions.stock-webhook]
-verify_jwt = false
-
-[functions.analyze-image]
-verify_jwt = false
+project_id = "iheekkjuynwfltreabjg"

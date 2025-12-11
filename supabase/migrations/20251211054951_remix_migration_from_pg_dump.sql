@@ -1,9 +1,9 @@
-CREATE EXTENSION IF NOT EXISTS "pg_graphql";
-CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE EXTENSION IF NOT EXISTS "plpgsql";
-CREATE EXTENSION IF NOT EXISTS "supabase_vault";
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
+CREATE EXTENSION IF NOT EXISTS "plpgsql" WITH SCHEMA "pg_catalog";
+CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 --
 -- PostgreSQL database dump
 --
@@ -57,7 +57,8 @@ CREATE TYPE public.entry_method AS ENUM (
 CREATE TYPE public.item_condition AS ENUM (
     'good',
     'damaged',
-    'broken'
+    'broken',
+    'new'
 );
 
 
@@ -69,6 +70,22 @@ CREATE TYPE public.movement_type AS ENUM (
     'add',
     'remove'
 );
+
+
+--
+-- Name: handle_new_user(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.handle_new_user() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  INSERT INTO public.profiles (user_id, display_name)
+  VALUES (new.id, COALESCE(new.raw_user_meta_data ->> 'display_name', new.email));
+  RETURN new;
+END;
+$$;
 
 
 --
@@ -104,6 +121,25 @@ $$;
 
 
 SET default_table_access_method = heap;
+
+--
+-- Name: audit_logs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audit_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid,
+    device_user_id uuid,
+    action_type text NOT NULL,
+    item_id uuid,
+    item_name text,
+    item_sku text,
+    old_value text,
+    new_value text,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 
 --
 -- Name: categories; Type: TABLE; Schema: public; Owner: -
@@ -143,7 +179,8 @@ CREATE TABLE public.inventory_items (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     category_id uuid,
     condition public.item_condition DEFAULT 'good'::public.item_condition,
-    photos text[] DEFAULT '{}'::text[]
+    photos text[] DEFAULT '{}'::text[],
+    low_stock_threshold integer DEFAULT 5
 );
 
 
@@ -172,7 +209,8 @@ CREATE TABLE public.stock_movements (
     entry_method public.entry_method DEFAULT 'manual'::public.entry_method NOT NULL,
     ai_confidence numeric(5,2),
     notes text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    condition public.item_condition
 );
 
 
@@ -201,6 +239,14 @@ CREATE TABLE public.user_roles (
     role public.app_role NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 
 --
@@ -298,6 +344,30 @@ CREATE TRIGGER update_inventory_items_updated_at BEFORE UPDATE ON public.invento
 
 
 --
+-- Name: audit_logs audit_logs_device_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_device_user_id_fkey FOREIGN KEY (device_user_id) REFERENCES public.device_users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: audit_logs audit_logs_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.inventory_items(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audit_logs audit_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: categories categories_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -346,66 +416,164 @@ ALTER TABLE ONLY public.user_roles
 
 
 --
--- Name: categories Admins can delete categories; Type: POLICY; Schema: public; Owner: -
+-- Name: user_roles Admins can manage user roles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins can delete categories" ON public.categories FOR DELETE USING (public.has_role(auth.uid(), 'admin'::public.app_role));
-
-
---
--- Name: categories Admins can insert categories; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins can insert categories" ON public.categories FOR INSERT WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+CREATE POLICY "Admins can manage user roles" ON public.user_roles TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role)) WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
 
 
 --
--- Name: categories Admins can update categories; Type: POLICY; Schema: public; Owner: -
+-- Name: inventory_items Anyone authenticated can insert inventory items; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins can update categories" ON public.categories FOR UPDATE USING (public.has_role(auth.uid(), 'admin'::public.app_role));
-
-
---
--- Name: device_users Allow all operations on device_users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow all operations on device_users" ON public.device_users USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone authenticated can insert inventory items" ON public.inventory_items FOR INSERT TO authenticated WITH CHECK (true);
 
 
 --
--- Name: inventory_items Allow all operations on inventory_items; Type: POLICY; Schema: public; Owner: -
+-- Name: stock_movements Anyone authenticated can insert stock movements; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Allow all operations on inventory_items" ON public.inventory_items USING (true) WITH CHECK (true);
-
-
---
--- Name: profiles Allow all operations on profiles; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow all operations on profiles" ON public.profiles USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone authenticated can insert stock movements" ON public.stock_movements FOR INSERT TO authenticated WITH CHECK (true);
 
 
 --
--- Name: stock_movements Allow all operations on stock_movements; Type: POLICY; Schema: public; Owner: -
+-- Name: inventory_items Anyone authenticated can update inventory items; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Allow all operations on stock_movements" ON public.stock_movements USING (true) WITH CHECK (true);
-
-
---
--- Name: sync_queue Allow all operations on sync_queue; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow all operations on sync_queue" ON public.sync_queue USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone authenticated can update inventory items" ON public.inventory_items FOR UPDATE TO authenticated USING (true);
 
 
 --
--- Name: categories Everyone can view categories; Type: POLICY; Schema: public; Owner: -
+-- Name: categories Anyone authenticated can view categories; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Everyone can view categories" ON public.categories FOR SELECT USING (true);
+CREATE POLICY "Anyone authenticated can view categories" ON public.categories FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: inventory_items Anyone authenticated can view inventory items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Anyone authenticated can view inventory items" ON public.inventory_items FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: stock_movements Anyone authenticated can view stock movements; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Anyone authenticated can view stock movements" ON public.stock_movements FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: device_users Anyone can view device users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Anyone can view device users" ON public.device_users FOR SELECT USING (true);
+
+
+--
+-- Name: audit_logs Authenticated users can insert audit logs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authenticated users can insert audit logs" ON public.audit_logs FOR INSERT WITH CHECK (true);
+
+
+--
+-- Name: audit_logs Only admins can delete audit logs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete audit logs" ON public.audit_logs FOR DELETE USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: categories Only admins can delete categories; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete categories" ON public.categories FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: device_users Only admins can delete device users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete device users" ON public.device_users FOR DELETE USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: inventory_items Only admins can delete inventory items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete inventory items" ON public.inventory_items FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: stock_movements Only admins can delete stock movements; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete stock movements" ON public.stock_movements FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: categories Only admins can insert categories; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can insert categories" ON public.categories FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: device_users Only admins can insert device users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can insert device users" ON public.device_users FOR INSERT WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: categories Only admins can update categories; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can update categories" ON public.categories FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: device_users Only admins can update device users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can update device users" ON public.device_users FOR UPDATE USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: audit_logs Only admins can view audit logs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can view audit logs" ON public.audit_logs FOR SELECT USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+
+--
+-- Name: sync_queue Service role access only; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Service role access only" ON public.sync_queue USING (false) WITH CHECK (false);
+
+
+--
+-- Name: profiles Users can insert their own profile; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT TO authenticated WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: profiles Users can update their own profile; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE TO authenticated USING ((auth.uid() = user_id));
+
+
+--
+-- Name: profiles Users can view all profiles; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view all profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -414,6 +582,12 @@ CREATE POLICY "Everyone can view categories" ON public.categories FOR SELECT USI
 
 CREATE POLICY "Users can view their own roles" ON public.user_roles FOR SELECT USING ((auth.uid() = user_id));
 
+
+--
+-- Name: audit_logs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: categories; Type: ROW SECURITY; Schema: public; Owner: -
