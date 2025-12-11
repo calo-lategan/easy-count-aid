@@ -8,7 +8,7 @@ import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useCategories } from '@/hooks/useCategories';
 import { useUsers } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Search, Package, Plus, AlertTriangle, Trash2, Pencil, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Search, Package, Plus, AlertTriangle, Trash2, Pencil, TrendingDown, Download } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,7 @@ import { InventoryItem } from '@/lib/indexedDb';
 import { InventoryFilters } from '@/components/inventory/InventoryFilters';
 import { ItemEditDialog } from '@/components/inventory/ItemEditDialog';
 import { LowStockAlert } from '@/components/inventory/LowStockAlert';
+import { ExportDialog } from '@/components/inventory/ExportDialog';
 import { ConditionBadge } from '@/components/stock/ConditionBadge';
 import { Badge } from '@/components/ui/badge';
 
@@ -39,6 +40,7 @@ export default function InventoryList() {
   const highlightItemId = searchParams.get('highlight');
   const { toast } = useToast();
   const { items, deleteItem, updateItem } = useInventoryItems();
+  const { movements } = useStockMovements(); // Get all movements for export and alerts
   const { users } = useUsers();
   const { categories, getCategoryPath } = useCategories();
   const { isAdmin } = useAuth();
@@ -49,6 +51,7 @@ export default function InventoryList() {
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<InventoryItem | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -121,15 +124,22 @@ export default function InventoryList() {
             <ArrowLeft className="h-5 w-5" />
             Back
           </Button>
-          <Button onClick={() => navigate('/manual-entry')} className="gap-2">
-            <Plus className="h-5 w-5" />
-            Add Item
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setExportDialogOpen(true)} className="gap-2">
+              <Download className="h-5 w-5" />
+              Export
+            </Button>
+            <Button onClick={() => navigate('/manual-entry')} className="gap-2">
+              <Plus className="h-5 w-5" />
+              Add Item
+            </Button>
+          </div>
         </div>
 
-        {/* Low Stock Alerts */}
+        {/* Low Stock and Broken Stock Alerts */}
         <LowStockAlert 
           items={items}
+          movements={movements}
           onItemClick={(item) => {
             setItemToEdit(item);
             setEditDialogOpen(true);
@@ -302,6 +312,16 @@ export default function InventoryList() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Export Dialog */}
+        <ExportDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          items={filteredItems}
+          movements={movements}
+          users={users}
+          getCategoryPath={getCategoryPath}
+        />
       </div>
     </AppLayout>
   );
@@ -338,6 +358,17 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
 
   // Filter out zero or negative quantities
   const activeConditions = Object.entries(conditionBreakdown).filter(([_, qty]) => qty > 0);
+  
+  // Check if any broken stock exists
+  const hasBrokenStock = conditionBreakdown['broken'] > 0;
+  
+  // Generate summary line
+  const summaryParts: string[] = [];
+  if (conditionBreakdown['new'] > 0) summaryParts.push(`${conditionBreakdown['new']} new`);
+  if (conditionBreakdown['good'] > 0) summaryParts.push(`${conditionBreakdown['good']} good`);
+  if (conditionBreakdown['damaged'] > 0) summaryParts.push(`${conditionBreakdown['damaged']} damaged`);
+  if (conditionBreakdown['broken'] > 0) summaryParts.push(`${conditionBreakdown['broken']} broken`);
+  const summaryLine = summaryParts.length > 0 ? summaryParts.join(', ') : 'No stock recorded';
 
   return (
     <Dialog open={!!item} onOpenChange={() => onClose()}>
@@ -360,20 +391,23 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
             </div>
           </div>
 
-          {/* Quantity Breakdown by Condition */}
-          {activeConditions.length > 0 && (
-            <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">Stock by Condition</p>
+          {/* Current Stock Breakdown - Moved higher and more prominent */}
+          <div className={`p-4 rounded-lg border-2 ${hasBrokenStock ? 'border-destructive bg-destructive/5' : 'border-primary/20 bg-primary/5'}`}>
+            <p className="text-sm font-semibold mb-1">Current Stock Breakdown</p>
+            <p className="text-xs text-muted-foreground mb-3">{summaryLine}</p>
+            {activeConditions.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {activeConditions.map(([condition, qty]) => (
-                  <div key={condition} className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md">
+                  <div key={condition} className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md border">
                     <ConditionBadge condition={condition as 'new' | 'good' | 'damaged' | 'broken'} />
                     <span className="font-semibold">{qty}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground">No condition data available</p>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-muted p-4 rounded-lg">
@@ -383,7 +417,8 @@ function ItemDetailDialog({ item, users, categories, getCategoryPath, onClose, o
               </p>
             </div>
             <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Default Condition</p>
+              <p className="text-sm text-muted-foreground">Condition Setting</p>
+              <p className="text-xs text-muted-foreground mb-1">(Used when no condition specified)</p>
               {item.condition && <ConditionBadge condition={item.condition} />}
             </div>
           </div>
