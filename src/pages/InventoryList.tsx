@@ -116,18 +116,17 @@ export default function InventoryList() {
     return matchesSearch && matchesCategory && matchesCondition;
   });
 
-  // Helper function to get condition summary for an item
-  const getConditionSummary = (itemId: string) => {
-    const breakdown = itemConditionBreakdowns[itemId];
-    if (!breakdown) return null;
+  // Helper function to get condition summary for an item - shows ALL conditions
+  const getConditionSummary = (itemId: string): { condition: 'new' | 'good' | 'damaged' | 'broken'; qty: number }[] => {
+    const breakdown = itemConditionBreakdowns[itemId] || { new: 0, good: 0, damaged: 0, broken: 0 };
     
-    const parts: { condition: 'new' | 'good' | 'damaged' | 'broken'; qty: number }[] = [];
-    if (breakdown.new > 0) parts.push({ condition: 'new', qty: breakdown.new });
-    if (breakdown.good > 0) parts.push({ condition: 'good', qty: breakdown.good });
-    if (breakdown.damaged > 0) parts.push({ condition: 'damaged', qty: breakdown.damaged });
-    if (breakdown.broken > 0) parts.push({ condition: 'broken', qty: breakdown.broken });
-    
-    return parts.length > 0 ? parts : null;
+    // Always return all 4 conditions
+    return [
+      { condition: 'new', qty: breakdown.new || 0 },
+      { condition: 'good', qty: breakdown.good || 0 },
+      { condition: 'damaged', qty: breakdown.damaged || 0 },
+      { condition: 'broken', qty: breakdown.broken || 0 },
+    ];
   };
 
   const handleDelete = async () => {
@@ -285,19 +284,12 @@ export default function InventoryList() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {(() => {
-                      const conditionSummary = getConditionSummary(item.id);
-                      if (conditionSummary && conditionSummary.length > 0) {
-                        return conditionSummary.map(({ condition, qty }) => (
-                          <div key={condition} className="flex items-center gap-1">
-                            <ConditionBadge condition={condition} />
-                            <span className="text-xs font-medium">{qty}</span>
-                          </div>
-                        ));
-                      }
-                      // Fallback to default condition if no movement data
-                      return item.condition && <ConditionBadge condition={item.condition} />;
-                    })()}
+                    {getConditionSummary(item.id).map(({ condition, qty }) => (
+                      <div key={condition} className="flex items-center gap-1">
+                        <ConditionBadge condition={condition} />
+                        <span className={`text-xs font-medium ${qty === 0 ? 'text-muted-foreground' : ''}`}>{qty}</span>
+                      </div>
+                    ))}
                     <Button 
                       variant="ghost" 
                       size="sm"
