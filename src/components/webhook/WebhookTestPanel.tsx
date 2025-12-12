@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Webhook, Send, Copy, CheckCircle } from 'lucide-react';
+import { Webhook, Send, Copy, CheckCircle, Code, Key, Clock, Shield } from 'lucide-react';
+import { ConditionSelector } from '@/components/stock/ConditionSelector';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface WebhookTestPanelProps {
   webhookUrl: string;
-  onTestWebhook: (data: { name: string; sku: string; amount: number }) => void;
+  onTestWebhook: (data: { name: string; sku: string; amount: number; condition: 'new' | 'good' | 'damaged' | 'broken' }) => void;
 }
 
 export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanelProps) {
@@ -16,13 +18,15 @@ export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanel
   const [testName, setTestName] = useState('Test Item');
   const [testSku, setTestSku] = useState('TEST-001');
   const [testAmount, setTestAmount] = useState(10);
-  const [copied, setCopied] = useState(false);
+  const [testCondition, setTestCondition] = useState<'new' | 'good' | 'damaged' | 'broken'>('new');
+  const [copied, setCopied] = useState<string | null>(null);
+  const [isImplementationOpen, setIsImplementationOpen] = useState(false);
 
-  const handleCopyUrl = async () => {
-    await navigator.clipboard.writeText(webhookUrl);
-    setCopied(true);
-    toast({ title: 'Copied!', description: 'Webhook URL copied to clipboard' });
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(label);
+    toast({ title: 'Copied!', description: `${label} copied to clipboard` });
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const handleTest = () => {
@@ -34,8 +38,100 @@ export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanel
       });
       return;
     }
-    onTestWebhook({ name: testName, sku: testSku, amount: testAmount });
+    onTestWebhook({ name: testName, sku: testSku, amount: testAmount, condition: testCondition });
   };
+
+  // Generate sample payloads
+  const samplePayload = JSON.stringify({
+    action: "add",
+    item_name: testName,
+    sku: testSku,
+    amount: testAmount,
+    condition: testCondition
+  }, null, 2);
+
+  const curlExample = `curl -X POST "${webhookUrl}" \\
+  -H "Content-Type: application/json" \\
+  -H "x-webhook-signature: <YOUR_HMAC_SIGNATURE>" \\
+  -H "x-webhook-timestamp: <UNIX_TIMESTAMP_MS>" \\
+  -d '${JSON.stringify({ action: "add", item_name: testName, sku: testSku, amount: testAmount, condition: testCondition })}'`;
+
+  const nodeJsExample = `const crypto = require('crypto');
+
+const WEBHOOK_SECRET = 'your-webhook-secret';
+const WEBHOOK_URL = '${webhookUrl}';
+
+async function sendWebhook(data) {
+  const timestamp = Date.now().toString();
+  const body = JSON.stringify(data);
+  const signedPayload = \`\${timestamp}.\${body}\`;
+  
+  const signature = crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(signedPayload)
+    .digest('hex');
+
+  const response = await fetch(WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-webhook-signature': signature,
+      'x-webhook-timestamp': timestamp,
+    },
+    body,
+  });
+
+  return response.json();
+}
+
+// Example usage:
+sendWebhook({
+  action: 'add',      // 'add' | 'remove' | 'incoming'
+  item_name: 'Widget',
+  sku: 'WID-001',
+  amount: 10,
+  condition: 'new'    // 'new' | 'good' | 'damaged' | 'broken'
+});`;
+
+  const pythonExample = `import hmac
+import hashlib
+import time
+import requests
+import json
+
+WEBHOOK_SECRET = 'your-webhook-secret'
+WEBHOOK_URL = '${webhookUrl}'
+
+def send_webhook(data):
+    timestamp = str(int(time.time() * 1000))
+    body = json.dumps(data)
+    signed_payload = f"{timestamp}.{body}"
+    
+    signature = hmac.new(
+        WEBHOOK_SECRET.encode(),
+        signed_payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    
+    response = requests.post(
+        WEBHOOK_URL,
+        json=data,
+        headers={
+            'Content-Type': 'application/json',
+            'x-webhook-signature': signature,
+            'x-webhook-timestamp': timestamp,
+        }
+    )
+    return response.json()
+
+# Example usage:
+send_webhook({
+    'action': 'add',      # 'add' | 'remove' | 'incoming'
+    'item_name': 'Widget',
+    'sku': 'WID-001',
+    'amount': 10,
+    'condition': 'new'    # 'new' | 'good' | 'damaged' | 'broken'
+})`;
 
   return (
     <Card>
@@ -51,15 +147,18 @@ export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanel
       <CardContent className="space-y-6">
         {/* Webhook URL */}
         <div className="space-y-2">
-          <Label>Webhook URL</Label>
+          <Label className="flex items-center gap-2">
+            <Code className="h-4 w-4" />
+            Webhook URL
+          </Label>
           <div className="flex gap-2">
             <Input 
               value={webhookUrl} 
               readOnly 
               className="font-mono text-sm bg-muted"
             />
-            <Button variant="outline" size="icon" onClick={handleCopyUrl}>
-              {copied ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+            <Button variant="outline" size="icon" onClick={() => handleCopy(webhookUrl, 'Webhook URL')}>
+              {copied === 'Webhook URL' ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -67,36 +166,123 @@ export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanel
           </p>
         </div>
 
-        {/* Payload Format */}
-        <div className="space-y-2">
-          <Label>Expected Payload Format</Label>
-          <pre className="p-3 bg-muted rounded-lg text-sm font-mono overflow-x-auto">
-{`{
-  "action": "incoming",  // or "add", "remove"
-  "item_name": "string",
-  "sku": "string", 
-  "amount": number
-}`}
-          </pre>
-        </div>
-
         {/* Security Headers */}
-        <div className="space-y-2">
-          <Label>Required Security Headers</Label>
-          <pre className="p-3 bg-muted rounded-lg text-sm font-mono overflow-x-auto">
-{`x-webhook-signature: <HMAC-SHA256 of timestamp.body>
-x-webhook-timestamp: <Unix timestamp in ms>`}
-          </pre>
-          <p className="text-xs text-muted-foreground">
-            Sign the request with HMAC-SHA256 using your webhook secret. 
-            Signature = HMAC(timestamp + "." + body, WEBHOOK_SECRET)
+        <div className="space-y-2 p-4 border rounded-lg bg-muted/30">
+          <Label className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <Shield className="h-4 w-4" />
+            Required Security Headers
+          </Label>
+          <div className="grid gap-2 text-sm">
+            <div className="flex items-center gap-2">
+              <Key className="h-4 w-4 text-muted-foreground" />
+              <code className="bg-muted px-2 py-1 rounded font-mono">x-webhook-signature</code>
+              <span className="text-muted-foreground">HMAC-SHA256 signature</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <code className="bg-muted px-2 py-1 rounded font-mono">x-webhook-timestamp</code>
+              <span className="text-muted-foreground">Unix timestamp in ms</span>
+            </div>
+          </div>
+          <div className="mt-3 p-3 bg-muted rounded text-sm">
+            <p className="font-medium mb-1">Signature Generation:</p>
+            <code className="text-xs font-mono block">
+              signature = HMAC-SHA256(timestamp + "." + body, WEBHOOK_SECRET)
+            </code>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            ⚠️ Requests are rejected if timestamp is older than 5 minutes (replay protection)
           </p>
         </div>
 
+        {/* Payload Format */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Code className="h-4 w-4" />
+            Payload Format
+          </Label>
+          <div className="relative">
+            <pre className="p-3 bg-muted rounded-lg text-sm font-mono overflow-x-auto">
+{`{
+  "action": "add",           // "add" | "remove" | "incoming"
+  "item_name": "string",     // Item display name
+  "sku": "string",           // Unique stock keeping unit
+  "amount": number,          // Positive integer quantity
+  "condition": "new"         // "new" | "good" | "damaged" | "broken"
+}`}
+            </pre>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute top-2 right-2 h-8 w-8"
+              onClick={() => handleCopy(samplePayload, 'Payload')}
+            >
+              {copied === 'Payload' ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p><strong>action:</strong> "incoming" = pending confirmation, "add" = direct add, "remove" = direct remove</p>
+            <p><strong>condition:</strong> Stock condition for tracking ("new", "good", "damaged", "broken")</p>
+          </div>
+        </div>
+
+        {/* Implementation Examples */}
+        <Collapsible open={isImplementationOpen} onOpenChange={setIsImplementationOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full gap-2">
+              <Code className="h-4 w-4" />
+              {isImplementationOpen ? 'Hide' : 'Show'} Implementation Examples
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 mt-4">
+            {/* cURL Example */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">cURL Example</Label>
+                <Button variant="ghost" size="sm" onClick={() => handleCopy(curlExample, 'cURL')}>
+                  {copied === 'cURL' ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <pre className="p-3 bg-muted rounded-lg text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+                {curlExample}
+              </pre>
+            </div>
+
+            {/* Node.js Example */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Node.js Example</Label>
+                <Button variant="ghost" size="sm" onClick={() => handleCopy(nodeJsExample, 'Node.js')}>
+                  {copied === 'Node.js' ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <pre className="p-3 bg-muted rounded-lg text-xs font-mono overflow-x-auto max-h-64">
+                {nodeJsExample}
+              </pre>
+            </div>
+
+            {/* Python Example */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Python Example</Label>
+                <Button variant="ghost" size="sm" onClick={() => handleCopy(pythonExample, 'Python')}>
+                  {copied === 'Python' ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <pre className="p-3 bg-muted rounded-lg text-xs font-mono overflow-x-auto max-h-64">
+                {pythonExample}
+              </pre>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
         {/* Test Webhook */}
         <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-          <h4 className="font-medium">Test Webhook</h4>
-          <div className="grid grid-cols-3 gap-3">
+          <h4 className="font-medium">Test Webhook (Simulated)</h4>
+          <p className="text-xs text-muted-foreground">
+            This simulates receiving a webhook to test the confirmation flow. No actual HTTP request is made.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Item Name</Label>
               <Input
@@ -121,6 +307,13 @@ x-webhook-timestamp: <Unix timestamp in ms>`}
                 value={testAmount}
                 onChange={(e) => setTestAmount(parseInt(e.target.value) || 0)}
                 placeholder="Amount"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Condition</Label>
+              <ConditionSelector
+                value={testCondition}
+                onChange={setTestCondition}
               />
             </div>
           </div>
