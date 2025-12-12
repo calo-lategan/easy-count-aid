@@ -83,11 +83,7 @@ Deno.serve(async (req) => {
       if (!verification.valid) {
         console.error('Webhook signature verification failed:', verification.error);
         return new Response(
-          JSON.stringify({ 
-            error: 'Unauthorized', 
-            details: verification.error,
-            hint: 'Include x-webhook-signature and x-webhook-timestamp headers with valid HMAC signature'
-          }),
+          JSON.stringify({ error: 'Unauthorized' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -134,12 +130,9 @@ Deno.serve(async (req) => {
 
     // Validate required fields for add/remove actions
     if (!payload.item_name || !payload.sku || payload.amount === undefined) {
+      console.error('Missing required fields. Received:', payload);
       return new Response(
-        JSON.stringify({ 
-          error: 'Missing required fields',
-          required: ['item_name', 'sku', 'amount'],
-          received: payload
-        }),
+        JSON.stringify({ error: 'Bad request' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -213,25 +206,18 @@ Deno.serve(async (req) => {
     }
 
     if (!item) {
+      console.error('Item not found for SKU:', payload.sku);
       return new Response(
-        JSON.stringify({ 
-          error: 'Item not found',
-          sku: payload.sku,
-          message: 'Cannot remove stock from non-existent item'
-        }),
+        JSON.stringify({ error: 'Item not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Verify item name matches (case-insensitive)
     if (item.name.toLowerCase() !== payload.item_name.toLowerCase()) {
+      console.error('Item name mismatch for SKU:', payload.sku, 'Expected:', item.name, 'Received:', payload.item_name);
       return new Response(
-        JSON.stringify({ 
-          error: 'Item name mismatch',
-          expected: item.name,
-          received: payload.item_name,
-          message: 'SKU exists but item name does not match'
-        }),
+        JSON.stringify({ error: 'Item name mismatch' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
