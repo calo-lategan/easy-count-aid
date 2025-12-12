@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Minus, Package, AlertTriangle, Check, X, Edit } from 'lucide-react';
+import { ConditionSelector } from '@/components/stock/ConditionSelector';
 
 interface WebhookData {
   item_name: string;
@@ -34,10 +35,10 @@ interface WebhookConfirmationPopupProps {
   open: boolean;
   onClose: () => void;
   data: WebhookData | null;
-  onConfirm: (action: 'add' | 'remove', data: WebhookData) => Promise<void>;
+  onConfirm: (action: 'add' | 'remove', data: WebhookData & { condition?: 'new' | 'good' | 'damaged' | 'broken' }) => Promise<void>;
 }
 
-type Step = 'initial' | 'confirm-add' | 'edit-amount';
+type Step = 'initial' | 'confirm-add' | 'edit-details';
 
 export function WebhookConfirmationPopup({ 
   open, 
@@ -50,12 +51,20 @@ export function WebhookConfirmationPopup({
   const [data, setData] = useState<WebhookData | null>(null);
   const [existingItem, setExistingItem] = useState<{ name: string; current_quantity: number } | null>(null);
   const [step, setStep] = useState<Step>('initial');
+  
+  // Editable fields
+  const [editedName, setEditedName] = useState('');
+  const [editedSku, setEditedSku] = useState('');
   const [editedAmount, setEditedAmount] = useState(0);
+  const [editedCondition, setEditedCondition] = useState<'new' | 'good' | 'damaged' | 'broken'>('new');
 
   useEffect(() => {
     if (initialData) {
       setData({ ...initialData });
+      setEditedName(initialData.item_name);
+      setEditedSku(initialData.sku);
       setEditedAmount(initialData.amount);
+      setEditedCondition('new');
       setStep('initial');
       checkExistingItem(initialData.sku);
     }
@@ -99,21 +108,30 @@ export function WebhookConfirmationPopup({
   };
 
   const handleConfirmNo = () => {
-    setStep('edit-amount');
+    setStep('edit-details');
   };
 
-  const handleSaveEditedAmount = async () => {
-    if (!data || editedAmount <= 0) {
+  const handleSaveEditedDetails = async () => {
+    if (!editedName.trim() || !editedSku.trim()) {
+      toast({ title: 'Error', description: 'Name and SKU are required', variant: 'destructive' });
+      return;
+    }
+    if (editedAmount <= 0) {
       toast({ title: 'Error', description: 'Amount must be greater than 0', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
     try {
-      await onConfirm('add', { ...data, amount: editedAmount });
+      await onConfirm('add', { 
+        item_name: editedName.trim(), 
+        sku: editedSku.trim(), 
+        amount: editedAmount,
+        condition: editedCondition 
+      });
       toast({ 
         title: 'Success', 
-        description: `Added ${editedAmount} units of ${data.item_name}` 
+        description: `Added ${editedAmount} units of ${editedName} (${editedCondition})` 
       });
       handleClose();
     } catch (error: any) {
@@ -255,7 +273,7 @@ export function WebhookConfirmationPopup({
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel onClick={handleConfirmNo} disabled={loading}>
               <X className="h-4 w-4 mr-2" />
-              No, Edit Amount
+              No, Edit Details
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleConfirmYes} 
@@ -271,36 +289,58 @@ export function WebhookConfirmationPopup({
     );
   }
 
-  // Edit Amount popup
-  if (step === 'edit-amount') {
+  // Edit Details popup - allows editing name, SKU, amount, and condition
+  if (step === 'edit-details') {
     return (
       <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit className="h-5 w-5" />
-              Edit Amount
+              Edit Details
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="font-medium">{data.item_name}</p>
-              <p className="text-sm text-muted-foreground">SKU: {data.sku}</p>
+            <div className="space-y-2">
+              <Label htmlFor="editName">Item Name</Label>
+              <Input
+                id="editName"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                className="h-12"
+                placeholder="Enter item name"
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="amount">New Amount</Label>
+              <Label htmlFor="editSku">SKU / Stock Number</Label>
               <Input
-                id="amount"
+                id="editSku"
+                value={editedSku}
+                onChange={(e) => setEditedSku(e.target.value)}
+                className="h-12 font-mono"
+                placeholder="Enter SKU"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editAmount">Quantity</Label>
+              <Input
+                id="editAmount"
                 type="number"
                 min="1"
                 value={editedAmount}
                 onChange={(e) => setEditedAmount(parseInt(e.target.value) || 0)}
                 className="text-lg h-12"
-                autoFocus
               />
             </div>
+
+            <ConditionSelector
+              value={editedCondition}
+              onChange={setEditedCondition}
+              label="Condition"
+            />
 
             {existingItem && (
               <p className="text-sm text-muted-foreground">
@@ -314,8 +354,8 @@ export function WebhookConfirmationPopup({
               Back
             </Button>
             <Button 
-              onClick={handleSaveEditedAmount} 
-              disabled={loading || editedAmount <= 0}
+              onClick={handleSaveEditedDetails} 
+              disabled={loading || editedAmount <= 0 || !editedName.trim() || !editedSku.trim()}
               className="bg-green-600 hover:bg-green-700"
             >
               Save & Add Stock

@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useUsers, AppUser } from '@/hooks/useUsers';
+import { useAuditLogs } from '@/hooks/useAuditLogs';
+import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Shield, UserPlus, Trash2, Loader2, Users, ShieldCheck } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +36,8 @@ export default function AdminManagement() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { users: allUsers, loading: usersLoading, deleteUser: deleteUserProfile, refresh: refreshUsers } = useUsers();
+  const { addLog } = useAuditLogs();
+  const { user } = useAuth();
   
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +147,19 @@ export default function AdminManagement() {
 
       if (insertError) throw insertError;
 
+      // Log admin added event
+      await addLog({
+        user_id: user?.id || null,
+        device_user_id: null,
+        action_type: 'admin_added',
+        item_id: null,
+        item_name: profile.display_name,
+        item_sku: null,
+        old_value: null,
+        new_value: 'admin',
+        notes: `Granted admin privileges to ${profile.display_name}`,
+      });
+
       toast({
         title: 'Admin added',
         description: `${newAdminEmail} has been granted admin privileges.`,
@@ -184,6 +201,19 @@ export default function AdminManagement() {
 
       if (error) throw error;
 
+      // Log admin removed event
+      await addLog({
+        user_id: user?.id || null,
+        device_user_id: null,
+        action_type: 'admin_removed',
+        item_id: null,
+        item_name: adminToDelete.display_name,
+        item_sku: null,
+        old_value: 'admin',
+        new_value: null,
+        notes: `Revoked admin privileges from ${adminToDelete.display_name}`,
+      });
+
       toast({
         title: 'Admin removed',
         description: `${adminToDelete.display_name} is no longer an admin.`,
@@ -219,11 +249,28 @@ export default function AdminManagement() {
     }
 
     try {
+      const deletedUserName = userToDelete.display_name;
       await deleteUserProfile(userToDelete.user_id);
+      
+      // Log user deleted event
+      await addLog({
+        user_id: user?.id || null,
+        device_user_id: null,
+        action_type: 'user_deleted',
+        item_id: null,
+        item_name: deletedUserName,
+        item_sku: null,
+        old_value: null,
+        new_value: null,
+        notes: `User account deleted: ${deletedUserName}`,
+      });
+
       toast({
         title: 'User deleted',
-        description: `${userToDelete.display_name} has been removed.`,
+        description: `${deletedUserName} has been removed.`,
       });
+      
+      refreshUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
       toast({
