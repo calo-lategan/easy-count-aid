@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
 import { useAuditLogs } from '@/hooks/useAuditLogs';
 import { useUsers } from '@/hooks/useUsers';
-import { ArrowLeft, Search, Download, Activity, Calendar, Package, FolderEdit, Palette, Plus, Trash, LogIn, LogOut, UserPlus } from 'lucide-react';
+import { ArrowLeft, Search, Download, Activity, Calendar, Package, FolderEdit, Palette, Plus, Trash, LogIn, LogOut, UserPlus, Shield, ShieldOff, UserMinus, FileSpreadsheet, Pencil } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ConditionBadge } from '@/components/stock/ConditionBadge';
 
@@ -106,6 +106,21 @@ export default function ActivityLog() {
           break;
         case 'user_signed_out':
           action = 'User Signed Out';
+          break;
+        case 'admin_added':
+          action = 'Admin Added';
+          break;
+        case 'admin_removed':
+          action = 'Admin Removed';
+          break;
+        case 'user_deleted':
+          action = 'User Deleted';
+          break;
+        case 'data_exported':
+          action = 'Data Exported';
+          break;
+        case 'item_edited':
+          action = 'Item Edited';
           break;
       }
 
@@ -241,6 +256,16 @@ export default function ActivityLog() {
         return <LogIn className="h-4 w-4 text-sky-600" />;
       case 'user_signed_out':
         return <LogOut className="h-4 w-4 text-slate-600" />;
+      case 'admin_added':
+        return <Shield className="h-4 w-4 text-violet-600" />;
+      case 'admin_removed':
+        return <ShieldOff className="h-4 w-4 text-rose-600" />;
+      case 'user_deleted':
+        return <UserMinus className="h-4 w-4 text-red-600" />;
+      case 'data_exported':
+        return <FileSpreadsheet className="h-4 w-4 text-teal-600" />;
+      case 'item_edited':
+        return <Pencil className="h-4 w-4 text-indigo-600" />;
       default:
         return <Activity className="h-4 w-4" />;
     }
@@ -268,6 +293,16 @@ export default function ActivityLog() {
         return 'text-sky-600 dark:text-sky-400';
       case 'user_signed_out':
         return 'text-slate-600 dark:text-slate-400';
+      case 'admin_added':
+        return 'text-violet-600 dark:text-violet-400';
+      case 'admin_removed':
+        return 'text-rose-600 dark:text-rose-400';
+      case 'user_deleted':
+        return 'text-red-600 dark:text-red-400';
+      case 'data_exported':
+        return 'text-teal-600 dark:text-teal-400';
+      case 'item_edited':
+        return 'text-indigo-600 dark:text-indigo-400';
       default:
         return '';
     }

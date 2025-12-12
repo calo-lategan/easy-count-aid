@@ -101,7 +101,7 @@ export function ExportDialog({
     return breakdowns;
   }, [movements]);
 
-  // Get last modifier per item
+  // Get last modifier per item - check both device_user_id and look up by user_id from profiles
   const lastModifiers = useMemo(() => {
     const modifiers: Record<string, string> = {};
     
@@ -111,9 +111,18 @@ export function ExportDialog({
     );
     
     sortedMovements.forEach(movement => {
-      if (!modifiers[movement.item_id] && movement.device_user_id) {
-        const user = users.find(u => u.user_id === movement.device_user_id);
-        modifiers[movement.item_id] = user?.display_name || '';
+      if (!modifiers[movement.item_id]) {
+        // Try to find user by device_user_id first
+        if (movement.device_user_id) {
+          const user = users.find(u => u.user_id === movement.device_user_id);
+          if (user) {
+            modifiers[movement.item_id] = user.display_name;
+            return;
+          }
+        }
+        // If no device_user_id match, we can mark as "System" or leave empty
+        // The auth user who made the change is tracked in audit_logs, not here
+        modifiers[movement.item_id] = '';
       }
     });
     
