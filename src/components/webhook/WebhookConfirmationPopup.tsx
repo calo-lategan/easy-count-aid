@@ -29,6 +29,7 @@ interface WebhookData {
   item_name: string;
   sku: string;
   amount: number;
+  condition?: 'new' | 'good' | 'damaged' | 'broken';
 }
 
 interface WebhookConfirmationPopupProps {
@@ -64,7 +65,7 @@ export function WebhookConfirmationPopup({
       setEditedName(initialData.item_name);
       setEditedSku(initialData.sku);
       setEditedAmount(initialData.amount);
-      setEditedCondition('new');
+      setEditedCondition(initialData.condition || 'new');
       setStep('initial');
       checkExistingItem(initialData.sku);
     }
@@ -94,10 +95,10 @@ export function WebhookConfirmationPopup({
 
     setLoading(true);
     try {
-      await onConfirm('add', data);
+      await onConfirm('add', { ...data, condition: data.condition || 'new' });
       toast({ 
         title: 'Success', 
-        description: `Added ${data.amount} units of ${data.item_name}` 
+        description: `Added ${data.amount} units of ${data.item_name} (${data.condition || 'new'})` 
       });
       handleClose();
     } catch (error: any) {
@@ -210,6 +211,10 @@ export function WebhookConfirmationPopup({
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount:</span>
                 <span className="font-bold text-lg">{data.amount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Condition:</span>
+                <span className="capitalize font-medium">{data.condition || 'new'}</span>
               </div>
             </div>
 

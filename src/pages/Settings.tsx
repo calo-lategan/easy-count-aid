@@ -26,11 +26,12 @@ export default function Settings() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const webhookUrl = `${supabaseUrl}/functions/v1/stock-webhook`;
 
-  const handleTestWebhook = (data: { name: string; sku: string; amount: number }) => {
+  const handleTestWebhook = (data: { name: string; sku: string; amount: number; condition: 'new' | 'good' | 'damaged' | 'broken' }) => {
     simulateIncomingWebhook({
       item_name: data.name,
       sku: data.sku,
       amount: data.amount,
+      condition: data.condition,
     });
   };
 

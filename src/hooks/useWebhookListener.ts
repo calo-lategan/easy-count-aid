@@ -5,6 +5,7 @@ interface WebhookData {
   item_name: string;
   sku: string;
   amount: number;
+  condition?: 'new' | 'good' | 'damaged' | 'broken';
 }
 
 export function useWebhookListener() {
@@ -28,6 +29,7 @@ export function useWebhookListener() {
         item_name: data.item_name,
         sku: data.sku,
         amount: data.amount,
+        condition: data.condition || 'new',
       },
     });
 
@@ -48,6 +50,7 @@ export function useWebhookListener() {
       item_name: data.item_name || 'Test Item',
       sku: data.sku || 'TEST-001',
       amount: data.amount || 10,
+      condition: data.condition || 'new',
     });
   }, [showWebhookPopup]);
 

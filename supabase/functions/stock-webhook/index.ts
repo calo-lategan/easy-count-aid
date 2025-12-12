@@ -10,6 +10,7 @@ interface WebhookPayload {
   item_name?: string;
   sku?: string;
   amount?: number;
+  condition?: 'new' | 'good' | 'damaged' | 'broken';
 }
 
 // Create HMAC signature for webhook verification
@@ -172,7 +173,7 @@ Deno.serve(async (req) => {
           sku: payload.sku,
           current_quantity: payload.amount,
           category_id: uncategorizedId,
-          condition: 'good'
+          condition: payload.condition || 'good'
         })
         .select()
         .single();
@@ -190,6 +191,7 @@ Deno.serve(async (req) => {
         item_id: newItem.id,
         movement_type: 'add',
         quantity: payload.amount,
+        condition: payload.condition || 'good',
         entry_method: 'manual',
         notes: 'Created via webhook'
       });
@@ -256,6 +258,7 @@ Deno.serve(async (req) => {
       item_id: item.id,
       movement_type: payload.action,
       quantity: payload.amount,
+      condition: payload.condition || item.condition || 'good',
       entry_method: 'manual',
       notes: `Updated via webhook`
     });
