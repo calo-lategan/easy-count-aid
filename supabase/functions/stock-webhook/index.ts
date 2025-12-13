@@ -163,16 +163,13 @@ Deno.serve(async (req) => {
 
     // If item doesn't exist and action is add, create it
     if (!item && payload.action === 'add') {
-      // Get the Uncategorized category
-      const uncategorizedId = '00000000-0000-0000-0000-000000000000';
-      
       const { data: newItem, error: createError } = await supabase
         .from('inventory_items')
         .insert({
           name: payload.item_name,
           sku: payload.sku,
           current_quantity: payload.amount,
-          category_id: uncategorizedId,
+          category_id: null, // No category for webhook-created items
           condition: payload.condition || 'good'
         })
         .select()
