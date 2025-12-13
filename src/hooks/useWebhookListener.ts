@@ -42,13 +42,15 @@ export function useWebhookListener() {
   }, []);
 
   const confirmWebhook = useCallback(async (action: 'add' | 'remove', data: WebhookData) => {
+    // Always use current authenticated user for tracking - this ensures
+    // the active user is recorded regardless of what webhook provides
     const payload = {
       action,
       item_name: data.item_name,
       sku: data.sku,
       amount: data.amount,
       condition: data.condition || 'new',
-      user_id: user?.id, // Include authenticated user's ID for tracking
+      user_id: user?.id, // Current authenticated user is always the modifier
     };
 
     const bodyText = JSON.stringify(payload);
@@ -85,7 +87,7 @@ export function useWebhookListener() {
     }
 
     return result;
-  }, []);
+  }, [user?.id]);
 
   // Simulate receiving a webhook (for testing/demo)
   const simulateIncomingWebhook = useCallback((data: Partial<WebhookData>) => {
