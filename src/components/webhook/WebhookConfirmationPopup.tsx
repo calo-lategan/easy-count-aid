@@ -276,18 +276,18 @@ export function WebhookConfirmationPopup({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel onClick={handleConfirmNo} disabled={loading}>
-              <X className="h-4 w-4 mr-2" />
+            <Button variant="outline" onClick={handleConfirmNo} disabled={loading}>
+              <Edit className="h-4 w-4 mr-2" />
               No, Edit Details
-            </AlertDialogCancel>
-            <AlertDialogAction 
+            </Button>
+            <Button 
               onClick={handleConfirmYes} 
               disabled={loading}
               className="bg-green-600 hover:bg-green-700"
             >
               <Check className="h-4 w-4 mr-2" />
               Yes, Add Stock
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
