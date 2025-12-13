@@ -11,6 +11,7 @@ interface WebhookPayload {
   sku?: string;
   amount?: number;
   condition?: 'new' | 'good' | 'damaged' | 'broken';
+  user_id?: string; // Auth user ID for tracking who made the change
 }
 
 // Create HMAC signature for webhook verification
@@ -183,13 +184,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Record the stock movement
+      // Record the stock movement with user tracking
       await supabase.from('stock_movements').insert({
         item_id: newItem.id,
         movement_type: 'add',
         quantity: payload.amount,
         condition: payload.condition || 'good',
         entry_method: 'manual',
+        device_user_id: payload.user_id || null,
         notes: 'Created via webhook'
       });
 
@@ -250,13 +252,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Record the stock movement
+    // Record the stock movement with user tracking
     await supabase.from('stock_movements').insert({
       item_id: item.id,
       movement_type: payload.action,
       quantity: payload.amount,
       condition: payload.condition || item.condition || 'good',
       entry_method: 'manual',
+      device_user_id: payload.user_id || null,
       notes: `Updated via webhook`
     });
 

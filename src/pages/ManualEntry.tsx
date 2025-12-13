@@ -92,13 +92,12 @@ export default function ManualEntry() {
         });
 
         // Create a stock movement for the initial quantity so condition breakdown works
-        // Note: Pass null for device_user_id since we're using auth user tracking
         if (initialQty > 0 && newItem) {
           await addStockMovement(
             newItem.id,
             initialQty,
             'add',
-            undefined, // device_user_id - not using device users for this action
+            user?.id, // Pass authenticated user's ID for tracking
             'manual',
             undefined,
             'Initial stock',
@@ -139,7 +138,7 @@ export default function ManualEntry() {
           selectedItem.id,
           qty,
           type,
-          undefined, // device_user_id - not using device users, auth user is tracked separately
+          user?.id, // Pass authenticated user's ID for tracking
           'manual',
           undefined,
           undefined,

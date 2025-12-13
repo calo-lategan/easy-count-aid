@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface WebhookData {
   item_name: string;
@@ -28,6 +29,7 @@ async function createHmac(message: string, secret: string): Promise<string> {
 export function useWebhookListener() {
   const [pendingWebhook, setPendingWebhook] = useState<WebhookData | null>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const { user } = useAuth();
 
   const showWebhookPopup = useCallback((data: WebhookData) => {
     setPendingWebhook(data);
@@ -46,6 +48,7 @@ export function useWebhookListener() {
       sku: data.sku,
       amount: data.amount,
       condition: data.condition || 'new',
+      user_id: user?.id, // Include authenticated user's ID for tracking
     };
 
     const bodyText = JSON.stringify(payload);
