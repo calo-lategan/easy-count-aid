@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Webhook, Send, Copy, CheckCircle, Code, Key, Clock, Shield } from 'lucide-react';
+import { Webhook, Send, Copy, CheckCircle, Code, Key, Clock, Shield, Eye, EyeOff, Save } from 'lucide-react';
 import { ConditionSelector } from '@/components/stock/ConditionSelector';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -21,6 +21,28 @@ export function WebhookTestPanel({ webhookUrl, onTestWebhook }: WebhookTestPanel
   const [testCondition, setTestCondition] = useState<'new' | 'good' | 'damaged' | 'broken'>('new');
   const [copied, setCopied] = useState<string | null>(null);
   const [isImplementationOpen, setIsImplementationOpen] = useState(false);
+  
+  // Webhook secret state
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
+  const [secretSaved, setSecretSaved] = useState(false);
+
+  // Load saved secret on mount
+  useEffect(() => {
+    const savedSecret = localStorage.getItem('webhook_secret');
+    if (savedSecret) {
+      setWebhookSecret(savedSecret);
+      setSecretSaved(true);
+    }
+  }, []);
+
+  const handleSaveSecret = () => {
+    if (webhookSecret.trim()) {
+      localStorage.setItem('webhook_secret', webhookSecret.trim());
+      setSecretSaved(true);
+      toast({ title: 'Secret Saved', description: 'Webhook secret saved locally for signing requests' });
+    }
+  };
 
   const handleCopy = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -163,6 +185,44 @@ send_webhook({
           </div>
           <p className="text-xs text-muted-foreground">
             Send POST requests to this URL to trigger stock updates
+          </p>
+        </div>
+
+        {/* Webhook Secret Input */}
+        <div className="space-y-2 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20">
+          <Label className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+            <Key className="h-4 w-4" />
+            Webhook Secret (for signing)
+          </Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showSecret ? 'text' : 'password'}
+                value={webhookSecret}
+                onChange={(e) => {
+                  setWebhookSecret(e.target.value);
+                  setSecretSaved(false);
+                }}
+                placeholder="Enter your webhook secret"
+                className="font-mono text-sm pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowSecret(!showSecret)}
+              >
+                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <Button onClick={handleSaveSecret} variant={secretSaved ? 'outline' : 'default'} className="gap-2">
+              {secretSaved ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Save className="h-4 w-4" />}
+              {secretSaved ? 'Saved' : 'Save'}
+            </Button>
+          </div>
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            ⚠️ This secret must match the WEBHOOK_SECRET configured in your backend. It's stored locally in your browser for signing test requests.
           </p>
         </div>
 
