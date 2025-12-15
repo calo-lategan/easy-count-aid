@@ -5,6 +5,7 @@ export interface AppUser {
   id: string;
   user_id: string;
   display_name: string;
+  email: string;
   created_at: string;
   is_admin: boolean;
 }
@@ -18,7 +19,7 @@ export function useUsers() {
       // Get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, display_name, created_at');
+        .select('id, user_id, display_name, email, created_at');
 
       if (profilesError) throw profilesError;
 
@@ -36,6 +37,7 @@ export function useUsers() {
         id: profile.id,
         user_id: profile.user_id || '',
         display_name: profile.display_name,
+        email: profile.email || '',
         created_at: profile.created_at,
         is_admin: adminUserIds.has(profile.user_id || ''),
       }));
