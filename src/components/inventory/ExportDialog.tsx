@@ -20,7 +20,7 @@ interface ExportDialogProps {
   onClose: () => void;
   items: InventoryItem[];
   movements: StockMovement[];
-  users: { user_id: string; display_name: string }[];
+  users: { user_id: string; display_name: string; email: string }[];
   getCategoryPath: (id: string) => string;
 }
 
@@ -127,7 +127,8 @@ export function ExportDialog({
         if (movement.device_user_id) {
           const foundUser = users.find(u => u.user_id === movement.device_user_id);
           if (foundUser) {
-            modifiers[itemId] = foundUser.display_name;
+            // Use email, fallback to display_name if no email
+            modifiers[itemId] = foundUser.email || foundUser.display_name;
             break;
           }
         }

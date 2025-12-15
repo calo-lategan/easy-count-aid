@@ -379,7 +379,7 @@ export default function InventoryList() {
 
 interface ItemDetailDialogProps {
   item: InventoryItem | null;
-  users: { user_id: string; display_name: string }[];
+  users: { user_id: string; display_name: string; email: string }[];
   categories: { id: string; name: string }[];
   getCategoryPath: (id: string) => string;
   onClose: () => void;
