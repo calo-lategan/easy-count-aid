@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Download, FileSpreadsheet, Table } from 'lucide-react';
 import { InventoryItem, StockMovement } from '@/lib/indexedDb';
+import { useAuth } from '@/contexts/AuthContext';
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 
@@ -67,8 +68,16 @@ export function ExportDialog({
   users,
   getCategoryPath 
 }: ExportDialogProps) {
+  const { user } = useAuth();
   const [exportFormat, setExportFormat] = useState<ExportFormat>('excel');
   const [isExporting, setIsExporting] = useState(false);
+
+  // Get current user's display name as fallback
+  const currentUserDisplayName = useMemo(() => {
+    if (!user) return '';
+    const profile = users.find(u => u.user_id === user.id);
+    return profile?.display_name || user.email || '';
+  }, [user, users]);
 
   // Calculate condition breakdown per item from movements
   const itemConditionBreakdowns = useMemo(() => {
@@ -102,6 +111,7 @@ export function ExportDialog({
   }, [movements]);
 
   // Get last modifier per item - look up by device_user_id which stores the auth user's ID
+  // If no user recorded in movements, fall back to current active user
   const lastModifiers = useMemo(() => {
     const modifiers: Record<string, string> = {};
     
@@ -112,21 +122,21 @@ export function ExportDialog({
     
     sortedMovements.forEach(movement => {
       if (!modifiers[movement.item_id]) {
-        // device_user_id now stores the auth user's ID, match against profiles' user_id
+        // device_user_id stores the auth user's ID, match against profiles' user_id
         if (movement.device_user_id) {
-          const user = users.find(u => u.user_id === movement.device_user_id);
-          if (user) {
-            modifiers[movement.item_id] = user.display_name;
+          const foundUser = users.find(u => u.user_id === movement.device_user_id);
+          if (foundUser) {
+            modifiers[movement.item_id] = foundUser.display_name;
             return;
           }
         }
-        // If no user found, leave empty
-        modifiers[movement.item_id] = '';
+        // If no user found in movement, use current active user as fallback
+        modifiers[movement.item_id] = currentUserDisplayName;
       }
     });
     
     return modifiers;
-  }, [movements, users]);
+  }, [movements, users, currentUserDisplayName]);
 
   const generateConditionString = (itemId: string): string => {
     const breakdown = itemConditionBreakdowns[itemId];
