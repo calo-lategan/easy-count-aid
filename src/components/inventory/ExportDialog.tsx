@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Download, FileSpreadsheet, Table } from 'lucide-react';
 import { InventoryItem, StockMovement } from '@/lib/indexedDb';
-import { useAuth } from '@/contexts/AuthContext';
+
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 
@@ -68,16 +68,8 @@ export function ExportDialog({
   users,
   getCategoryPath 
 }: ExportDialogProps) {
-  const { user } = useAuth();
   const [exportFormat, setExportFormat] = useState<ExportFormat>('excel');
   const [isExporting, setIsExporting] = useState(false);
-
-  // Get current user's display name as fallback
-  const currentUserDisplayName = useMemo(() => {
-    if (!user) return '';
-    const profile = users.find(u => u.user_id === user.id);
-    return profile?.display_name || user.email || '';
-  }, [user, users]);
 
   // Calculate condition breakdown per item from movements
   const itemConditionBreakdowns = useMemo(() => {
@@ -111,32 +103,44 @@ export function ExportDialog({
   }, [movements]);
 
   // Get last modifier per item - look up by device_user_id which stores the auth user's ID
-  // If no user recorded in movements, fall back to current active user
+  // Only show user if there's an actual recorded user for that specific item's movement
   const lastModifiers = useMemo(() => {
     const modifiers: Record<string, string> = {};
     
-    // Group movements by item and get the most recent one
-    const sortedMovements = [...movements].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    // Group movements by item_id first, then find the most recent with a user
+    const movementsByItem: Record<string, StockMovement[]> = {};
+    movements.forEach(movement => {
+      if (!movementsByItem[movement.item_id]) {
+        movementsByItem[movement.item_id] = [];
+      }
+      movementsByItem[movement.item_id].push(movement);
+    });
     
-    sortedMovements.forEach(movement => {
-      if (!modifiers[movement.item_id]) {
-        // device_user_id stores the auth user's ID, match against profiles' user_id
+    // For each item, find the most recent movement that has a recorded user
+    Object.keys(movementsByItem).forEach(itemId => {
+      const itemMovements = movementsByItem[itemId].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      // Find the most recent movement with a valid user
+      for (const movement of itemMovements) {
         if (movement.device_user_id) {
           const foundUser = users.find(u => u.user_id === movement.device_user_id);
           if (foundUser) {
-            modifiers[movement.item_id] = foundUser.display_name;
-            return;
+            modifiers[itemId] = foundUser.display_name;
+            break;
           }
         }
-        // If no user found in movement, use current active user as fallback
-        modifiers[movement.item_id] = currentUserDisplayName;
+      }
+      
+      // If no user found in any movement for this item, leave empty (don't use fallback)
+      if (!modifiers[itemId]) {
+        modifiers[itemId] = '';
       }
     });
     
     return modifiers;
-  }, [movements, users, currentUserDisplayName]);
+  }, [movements, users]);
 
   const generateConditionString = (itemId: string): string => {
     const breakdown = itemConditionBreakdowns[itemId];
