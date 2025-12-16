@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
+import { useSupabaseMovements } from '@/hooks/useSupabaseMovements';
 import { useCategories } from '@/hooks/useCategories';
 import { ConditionBadge } from '@/components/stock/ConditionBadge';
 import { 
@@ -29,8 +30,26 @@ interface InventoryItemExtended {
 export default function StockDashboard() {
   const navigate = useNavigate();
   const { items } = useInventoryItems();
-  const { movements } = useStockMovements(); // Get all movements across all items
+  const { movements: localMovements } = useStockMovements();
+  const { movements: supabaseMovements } = useSupabaseMovements();
   const { categories, getCategoryPath } = useCategories();
+
+  // Merge local and supabase movements (supabase takes priority for synced items)
+  const movements = useMemo(() => {
+    const movementMap = new Map<string, typeof supabaseMovements[0]>();
+    
+    // First add all supabase movements (server is source of truth)
+    supabaseMovements.forEach(m => movementMap.set(m.id, m));
+    
+    // Then add local movements that aren't in supabase yet
+    localMovements.forEach(m => {
+      if (!movementMap.has(m.id)) {
+        movementMap.set(m.id, m as any);
+      }
+    });
+    
+    return Array.from(movementMap.values());
+  }, [localMovements, supabaseMovements]);
 
   // Calculate stock by category
   const stockByCategory = useMemo(() => {

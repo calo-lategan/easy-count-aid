@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useInventoryItems, useStockMovements } from '@/hooks/useInventory';
+import { useSupabaseMovements } from '@/hooks/useSupabaseMovements';
 import { useCategories } from '@/hooks/useCategories';
 import { useUsers } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,10 +41,29 @@ export default function InventoryList() {
   const highlightItemId = searchParams.get('highlight');
   const { toast } = useToast();
   const { items, deleteItem, updateItem } = useInventoryItems();
-  const { movements } = useStockMovements(); // Get all movements for export and alerts
+  const { movements: localMovements } = useStockMovements(); // Local IndexedDB movements
+  const { movements: supabaseMovements, refresh: refreshSupabaseMovements } = useSupabaseMovements(); // Supabase movements
   const { users } = useUsers();
   const { categories, getCategoryPath } = useCategories();
   const { isAdmin } = useAuth();
+  
+  // Merge local and supabase movements (supabase takes priority for synced items)
+  const movements = useMemo(() => {
+    const movementMap = new Map<string, typeof supabaseMovements[0]>();
+    
+    // First add all supabase movements (server is source of truth)
+    supabaseMovements.forEach(m => movementMap.set(m.id, m));
+    
+    // Then add local movements that aren't in supabase yet
+    localMovements.forEach(m => {
+      if (!movementMap.has(m.id)) {
+        movementMap.set(m.id, m as any);
+      }
+    });
+    
+    return Array.from(movementMap.values())
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [localMovements, supabaseMovements]);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
