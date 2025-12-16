@@ -48,30 +48,75 @@ async function syncLocalChanges(): Promise<void> {
   for (const item of unsyncedItems) {
     try {
       if (item.table_name === 'inventory_items') {
+        // Handle record_data that might be double-stringified JSON
+        let recordData = item.record_data;
+        if (typeof recordData === 'string') {
+          try {
+            recordData = JSON.parse(recordData);
+          } catch (e) {
+            console.error('Failed to parse record_data string:', e);
+          }
+        }
+        
         if (item.action === 'insert' || item.action === 'update') {
           const { error } = await supabase
             .from('inventory_items')
-            .upsert(item.record_data);
+            .upsert(recordData);
           if (error) throw error;
         } else if (item.action === 'delete') {
           const { error } = await supabase
             .from('inventory_items')
             .delete()
-            .eq('id', item.record_data.id);
+            .eq('id', recordData.id);
           if (error) throw error;
         }
       } else if (item.table_name === 'stock_movements') {
+        // Handle record_data that might be double-stringified JSON
+        let recordData = item.record_data;
+        if (typeof recordData === 'string') {
+          try {
+            recordData = JSON.parse(recordData);
+          } catch (e) {
+            console.error('Failed to parse record_data string:', e);
+          }
+        }
+        
         if (item.action === 'insert') {
+          // Remove device_user_id if it references a non-existent user (FK constraint)
+          const cleanedData = { ...recordData };
+          
           const { error } = await supabase
             .from('stock_movements')
-            .insert(item.record_data);
-          if (error) throw error;
+            .upsert(cleanedData, { onConflict: 'id' });
+          if (error) {
+            console.error('Stock movement sync error:', error);
+            // If FK error on device_user_id, retry without it
+            if (error.code === '23503' && error.message?.includes('device_user_id')) {
+              delete cleanedData.device_user_id;
+              const { error: retryError } = await supabase
+                .from('stock_movements')
+                .upsert(cleanedData, { onConflict: 'id' });
+              if (retryError) throw retryError;
+            } else {
+              throw error;
+            }
+          }
         }
       } else if (item.table_name === 'device_users') {
+        // Handle record_data that might be double-stringified JSON
+        let recordData = item.record_data;
+        if (typeof recordData === 'string') {
+          try {
+            recordData = JSON.parse(recordData);
+          } catch (e) {
+            console.error('Failed to parse record_data string:', e);
+          }
+        }
+        
         if (item.action === 'insert' || item.action === 'update') {
           const { error } = await supabase
             .from('device_users')
-            .upsert(item.record_data);
+            .upsert(recordData);
           if (error) throw error;
         }
       }
