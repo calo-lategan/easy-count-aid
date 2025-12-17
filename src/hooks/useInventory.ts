@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as db from '@/lib/indexedDb';
 import { addToSyncQueue } from '@/lib/indexedDb';
-import { triggerSync } from '@/lib/syncService';
+import { triggerSync, getOnlineStatus } from '@/lib/syncService';
+import { supabase } from '@/integrations/supabase/client';
 
 export function useInventoryItems() {
   const [items, setItems] = useState<db.InventoryItem[]>([]);
@@ -106,11 +107,76 @@ export function useInventoryItems() {
     };
     
     await db.saveMovement(movement);
-    await addToSyncQueue({
-      action: 'insert',
-      table_name: 'stock_movements',
-      record_data: movement,
-    });
+    
+    // Immediately sync to Supabase if online (don't wait for sync queue)
+    if (getOnlineStatus()) {
+      try {
+        // Insert movement directly to Supabase for immediate sync
+        const { error: movementError } = await supabase
+          .from('stock_movements')
+          .upsert({
+            id: movement.id,
+            item_id: movement.item_id,
+            device_user_id: null, // Don't store device_user_id due to FK constraints
+            movement_type: movement.movement_type,
+            quantity: movement.quantity,
+            entry_method: movement.entry_method,
+            ai_confidence: movement.ai_confidence,
+            notes: movement.notes,
+            condition: movement.condition,
+            created_at: movement.created_at,
+          }, { onConflict: 'id' });
+        
+        if (movementError) {
+          console.error('Failed to sync movement to Supabase:', movementError);
+          // Still add to sync queue as backup
+          await addToSyncQueue({
+            action: 'insert',
+            table_name: 'stock_movements',
+            record_data: movement,
+          });
+        }
+        
+        // Also sync item update directly
+        const { error: itemError } = await supabase
+          .from('inventory_items')
+          .upsert(updated);
+          
+        if (itemError) {
+          console.error('Failed to sync item to Supabase:', itemError);
+          await addToSyncQueue({
+            action: 'update',
+            table_name: 'inventory_items',
+            record_data: updated,
+          });
+        }
+      } catch (error) {
+        console.error('Direct Supabase sync failed:', error);
+        // Fall back to sync queue
+        await addToSyncQueue({
+          action: 'insert',
+          table_name: 'stock_movements',
+          record_data: movement,
+        });
+        await addToSyncQueue({
+          action: 'update',
+          table_name: 'inventory_items',
+          record_data: updated,
+        });
+      }
+    } else {
+      // Offline - use sync queue
+      await addToSyncQueue({
+        action: 'insert',
+        table_name: 'stock_movements',
+        record_data: movement,
+      });
+      await addToSyncQueue({
+        action: 'update',
+        table_name: 'inventory_items',
+        record_data: updated,
+      });
+    }
     
     await loadItems();
     triggerSync();
@@ -142,11 +208,48 @@ export function useInventoryItems() {
     };
     
     await db.saveMovement(movement);
-    await addToSyncQueue({
-      action: 'insert',
-      table_name: 'stock_movements',
-      record_data: movement,
-    });
+    
+    // Immediately sync to Supabase if online
+    if (getOnlineStatus()) {
+      try {
+        const { error } = await supabase
+          .from('stock_movements')
+          .upsert({
+            id: movement.id,
+            item_id: movement.item_id,
+            device_user_id: null,
+            movement_type: movement.movement_type,
+            quantity: movement.quantity,
+            entry_method: movement.entry_method,
+            ai_confidence: movement.ai_confidence,
+            notes: movement.notes,
+            condition: movement.condition,
+            created_at: movement.created_at,
+          }, { onConflict: 'id' });
+        
+        if (error) {
+          console.error('Failed to sync movement:', error);
+          await addToSyncQueue({
+            action: 'insert',
+            table_name: 'stock_movements',
+            record_data: movement,
+          });
+        }
+      } catch (error) {
+        console.error('Direct sync failed:', error);
+        await addToSyncQueue({
+          action: 'insert',
+          table_name: 'stock_movements',
+          record_data: movement,
+        });
+      }
+    } else {
+      await addToSyncQueue({
+        action: 'insert',
+        table_name: 'stock_movements',
+        record_data: movement,
+      });
+    }
     
     triggerSync();
     return movement;
