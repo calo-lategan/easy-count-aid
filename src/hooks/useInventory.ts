@@ -118,6 +118,7 @@ export function useInventoryItems() {
             id: movement.id,
             item_id: movement.item_id,
             device_user_id: null, // Don't store device_user_id due to FK constraints
+            user_id: userId || null, // Store the authenticated user's ID
             movement_type: movement.movement_type,
             quantity: movement.quantity,
             entry_method: movement.entry_method,
@@ -218,6 +219,7 @@ export function useInventoryItems() {
             id: movement.id,
             item_id: movement.item_id,
             device_user_id: null,
+            user_id: userId || null, // Store the authenticated user's ID
             movement_type: movement.movement_type,
             quantity: movement.quantity,
             entry_method: movement.entry_method,

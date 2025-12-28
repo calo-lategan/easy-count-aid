@@ -229,6 +229,7 @@ export default function InventoryList() {
           selectedCondition={selectedCondition}
           onCategoryChange={setSelectedCategory}
           onConditionChange={setSelectedCondition}
+          getCategoryPath={getCategoryPath}
         />
 
         {/* Items List */}

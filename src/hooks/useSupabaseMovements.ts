@@ -5,6 +5,7 @@ export interface SupabaseStockMovement {
   id: string;
   item_id: string;
   device_user_id: string | null;
+  user_id: string | null; // Auth user who made the change
   movement_type: 'add' | 'remove';
   quantity: number;
   entry_method: 'ai_assisted' | 'manual';
@@ -36,7 +37,8 @@ export function useSupabaseMovements(itemId?: string) {
         return;
       }
       
-      setMovements(data || []);
+      // Cast to include user_id field
+      setMovements((data || []) as SupabaseStockMovement[]);
     } catch (error) {
       console.error('Failed to load movements:', error);
     } finally {

@@ -331,13 +331,11 @@ export default function ManualEntry() {
               <CardTitle>Enter Quantity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {type === 'add' && (
-                <ConditionSelector
-                  value={condition}
-                  onChange={setCondition}
-                  label="Condition of items being added"
-                />
-              )}
+              <ConditionSelector
+                value={condition}
+                onChange={setCondition}
+                label={type === 'add' ? "Condition of items being added" : "Condition of items being removed"}
+              />
               
               <div className="text-center p-4 bg-muted rounded-lg">
                 <span className="text-4xl font-bold">{quantity || '0'}</span>

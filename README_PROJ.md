@@ -78,17 +78,14 @@ A touch-friendly, offline-capable inventory management app for Android tablets t
 ### 📋 TODO / Future Enhancements
 
 #### High Priority
-- [ ] Camera AI integration for item recognition
-- [ ] Barcode/QR code scanning
-- [ ] Offline-first PWA with service worker
+- [x] Condition selector for stock removals (track which condition is being removed)
+- [x] Hierarchical category filter (shows full path like Categories page)
+- [x] User tracking in stock movements (user_id column for authenticated user)
+- [x] Excel export LastModifiedBy correctly shows per-item user
 - [ ] Real-time sync status indicator
 
 #### Medium Priority
 - [ ] Reports & analytics dashboard
-- [ ] Stock movement history per item
-- [ ] Bulk import from CSV/Excel
-- [ ] Print labels with QR codes
-- [ ] Voice commands for hands-free operation
 
 #### Low Priority
 - [ ] Multi-language support

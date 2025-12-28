@@ -207,6 +207,7 @@ export type Database = {
           movement_type: Database["public"]["Enums"]["movement_type"]
           notes: string | null
           quantity: number
+          user_id: string | null
         }
         Insert: {
           ai_confidence?: number | null
@@ -219,6 +220,7 @@ export type Database = {
           movement_type: Database["public"]["Enums"]["movement_type"]
           notes?: string | null
           quantity: number
+          user_id?: string | null
         }
         Update: {
           ai_confidence?: number | null
@@ -231,6 +233,7 @@ export type Database = {
           movement_type?: Database["public"]["Enums"]["movement_type"]
           notes?: string | null
           quantity?: number
+          user_id?: string | null
         }
         Relationships: [
           {
