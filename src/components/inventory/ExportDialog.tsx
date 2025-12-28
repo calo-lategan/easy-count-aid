@@ -15,11 +15,15 @@ import { InventoryItem, StockMovement } from '@/lib/indexedDb';
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 
+interface MovementWithUser extends StockMovement {
+  user_id?: string | null;
+}
+
 interface ExportDialogProps {
   open: boolean;
   onClose: () => void;
   items: InventoryItem[];
-  movements: StockMovement[];
+  movements: MovementWithUser[];
   users: { user_id: string; display_name: string; email: string }[];
   getCategoryPath: (id: string) => string;
 }
@@ -103,17 +107,16 @@ export function ExportDialog({
   }, [movements]);
 
   // Get last modifier per item - look up by user_id (auth user) first, fallback to device_user_id
-  // Only show user if there's an actual recorded user for that specific item's movement
   const lastModifiers = useMemo(() => {
     const modifiers: Record<string, string> = {};
     
     // Group movements by item_id first, then find the most recent with a user
-    const movementsByItem: Record<string, (StockMovement & { user_id?: string | null })[]> = {};
+    const movementsByItem: Record<string, MovementWithUser[]> = {};
     movements.forEach(movement => {
       if (!movementsByItem[movement.item_id]) {
         movementsByItem[movement.item_id] = [];
       }
-      movementsByItem[movement.item_id].push(movement as StockMovement & { user_id?: string | null });
+      movementsByItem[movement.item_id].push(movement);
     });
     
     // For each item, find the most recent movement that has a recorded user
@@ -124,19 +127,17 @@ export function ExportDialog({
       
       // Find the most recent movement with a valid user (check user_id first, then device_user_id)
       for (const movement of itemMovements) {
-        // First try user_id (new auth user tracking)
-        const userIdToCheck = (movement as any).user_id || movement.device_user_id;
+        const userIdToCheck = movement.user_id || movement.device_user_id;
         if (userIdToCheck) {
           const foundUser = users.find(u => u.user_id === userIdToCheck);
           if (foundUser) {
-            // Use email, fallback to display_name if no email
             modifiers[itemId] = foundUser.email || foundUser.display_name;
             break;
           }
         }
       }
       
-      // If no user found in any movement for this item, leave empty (don't use fallback)
+      // If no user found in any movement for this item, leave empty
       if (!modifiers[itemId]) {
         modifiers[itemId] = '';
       }
