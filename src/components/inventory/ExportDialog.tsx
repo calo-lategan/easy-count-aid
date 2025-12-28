@@ -102,18 +102,18 @@ export function ExportDialog({
     return breakdowns;
   }, [movements]);
 
-  // Get last modifier per item - look up by device_user_id which stores the auth user's ID
+  // Get last modifier per item - look up by user_id (auth user) first, fallback to device_user_id
   // Only show user if there's an actual recorded user for that specific item's movement
   const lastModifiers = useMemo(() => {
     const modifiers: Record<string, string> = {};
     
     // Group movements by item_id first, then find the most recent with a user
-    const movementsByItem: Record<string, StockMovement[]> = {};
+    const movementsByItem: Record<string, (StockMovement & { user_id?: string | null })[]> = {};
     movements.forEach(movement => {
       if (!movementsByItem[movement.item_id]) {
         movementsByItem[movement.item_id] = [];
       }
-      movementsByItem[movement.item_id].push(movement);
+      movementsByItem[movement.item_id].push(movement as StockMovement & { user_id?: string | null });
     });
     
     // For each item, find the most recent movement that has a recorded user
@@ -122,10 +122,12 @@ export function ExportDialog({
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       
-      // Find the most recent movement with a valid user
+      // Find the most recent movement with a valid user (check user_id first, then device_user_id)
       for (const movement of itemMovements) {
-        if (movement.device_user_id) {
-          const foundUser = users.find(u => u.user_id === movement.device_user_id);
+        // First try user_id (new auth user tracking)
+        const userIdToCheck = (movement as any).user_id || movement.device_user_id;
+        if (userIdToCheck) {
+          const foundUser = users.find(u => u.user_id === userIdToCheck);
           if (foundUser) {
             // Use email, fallback to display_name if no email
             modifiers[itemId] = foundUser.email || foundUser.display_name;
