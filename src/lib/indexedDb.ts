@@ -24,6 +24,7 @@ interface StockMovement {
   id: string;
   item_id: string;
   device_user_id?: string;
+  user_id?: string;
   movement_type: 'add' | 'remove';
   quantity: number;
   entry_method: 'ai_assisted' | 'manual';
