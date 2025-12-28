@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X } from 'lucide-react';
 import { Category } from '@/hooks/useCategories';
+import { HierarchicalCategoryFilter } from './HierarchicalCategoryFilter';
 
 interface InventoryFiltersProps {
   categories: Category[];
@@ -24,54 +24,19 @@ export function InventoryFilters({
 }: InventoryFiltersProps) {
   const hasFilters = selectedCategory || selectedCondition;
 
-  // Build hierarchical category list with indentation
-  const hierarchicalCategories = useMemo(() => {
-    // Get depth of a category
-    const getDepth = (catId: string): number => {
-      const cat = categories.find(c => c.id === catId);
-      if (!cat || !cat.parent_id) return 0;
-      return 1 + getDepth(cat.parent_id);
-    };
-
-    // Sort categories by their full path for proper grouping
-    return categories
-      .map(cat => ({
-        ...cat,
-        depth: getDepth(cat.id),
-        fullPath: getCategoryPath ? getCategoryPath(cat.id) : cat.name,
-      }))
-      .sort((a, b) => a.fullPath.localeCompare(b.fullPath));
-  }, [categories, getCategoryPath]);
-
-  // Get display name for selected category
-  const selectedCategoryDisplay = useMemo(() => {
-    if (!selectedCategory) return null;
-    if (getCategoryPath) return getCategoryPath(selectedCategory);
-    return categories.find(c => c.id === selectedCategory)?.name;
-  }, [selectedCategory, categories, getCategoryPath]);
+  const selectedCategoryDisplay = selectedCategory && getCategoryPath 
+    ? getCategoryPath(selectedCategory) 
+    : categories.find(c => c.id === selectedCategory)?.name;
 
   return (
     <div className="space-y-3">
       <div className="flex gap-3 flex-wrap">
-        <Select 
-          value={selectedCategory || 'all'} 
-          onValueChange={(value) => onCategoryChange(value === 'all' ? null : value)}
-        >
-          <SelectTrigger className="w-[280px]">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {hierarchicalCategories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                <span style={{ paddingLeft: `${cat.depth * 16}px` }} className="flex items-center gap-1">
-                  {cat.depth > 0 && <span className="text-muted-foreground">└</span>}
-                  {cat.fullPath}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <HierarchicalCategoryFilter
+          categories={categories}
+          value={selectedCategory}
+          onChange={onCategoryChange}
+          getCategoryPath={getCategoryPath}
+        />
 
         <Select 
           value={selectedCondition || 'all'} 

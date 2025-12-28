@@ -9,12 +9,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConditionSelector } from '@/components/stock/ConditionSelector';
 import { ImageUpload } from '@/components/inventory/ImageUpload';
+import { HierarchicalCategorySelect } from '@/components/inventory/HierarchicalCategorySelect';
 import { Category } from '@/hooks/useCategories';
 import { InventoryItem } from '@/lib/indexedDb';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCategories } from '@/hooks/useCategories';
 import { Lock } from 'lucide-react';
 
 interface ItemEditDialogProps {
@@ -33,6 +34,7 @@ export function ItemEditDialog({
   onSave 
 }: ItemEditDialogProps) {
   const { isAdmin } = useAuth();
+  const { getCategoryPath } = useCategories();
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -135,23 +137,15 @@ export function ItemEditDialog({
               Category
               {!isAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
             </Label>
-            <Select 
-              value={categoryId || 'none'} 
-              onValueChange={(value) => setCategoryId(value === 'none' ? null : value)}
+            <HierarchicalCategorySelect
+              categories={categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="Select category"
+              getCategoryPath={getCategoryPath}
               disabled={!isAdmin}
-            >
-              <SelectTrigger className={!isAdmin ? 'opacity-50' : ''}>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No Category</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className={!isAdmin ? 'opacity-50' : ''}
+            />
           </div>
 
           <div className="space-y-2">

@@ -72,30 +72,19 @@ export default function StockDashboard() {
     return Array.from(categoryMap.values()).sort((a, b) => b.total - a.total);
   }, [items, categories, getCategoryPath]);
 
-  // Calculate stock by condition from actual stock movements (not item's default condition)
+  // Calculate stock by condition from actual inventory items (current stock)
   const stockByCondition = useMemo(() => {
     const conditions = { new: 0, good: 0, damaged: 0, broken: 0 };
     
-    movements.forEach(movement => {
-      const condition = movement.condition || 'good';
+    (items as InventoryItemExtended[]).forEach(item => {
+      const condition = item.condition || 'good';
       if (condition in conditions) {
-        if (movement.movement_type === 'add') {
-          conditions[condition as keyof typeof conditions] += movement.quantity;
-        } else {
-          conditions[condition as keyof typeof conditions] -= movement.quantity;
-        }
-      }
-    });
-
-    // Ensure no negative values
-    Object.keys(conditions).forEach(key => {
-      if (conditions[key as keyof typeof conditions] < 0) {
-        conditions[key as keyof typeof conditions] = 0;
+        conditions[condition as keyof typeof conditions] += item.current_quantity;
       }
     });
 
     return conditions;
-  }, [movements]);
+  }, [items]);
 
   // Calculate broken stock quantity per item from movements
   const itemBrokenQuantities = useMemo(() => {
